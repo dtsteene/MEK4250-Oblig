@@ -1,0 +1,118 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{pyvista}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{dolfinx}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{numpy}\PYG{+w}{ }\PYG{k}{as}\PYG{+w}{ }\PYG{n+nn}{np}
+\PYG{k+kn}{from}\PYG{+w}{ }\PYG{n+nn}{pathlib}\PYG{+w}{ }\PYG{k+kn}{import} \PYG{n}{Path}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{matplotlib.pyplot}\PYG{+w}{ }\PYG{k}{as}\PYG{+w}{ }\PYG{n+nn}{plt}
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{visualize\PYGZus{}mixed}\PYG{p}{(}\PYG{n}{mixed\PYGZus{}function}\PYG{p}{:} \PYG{n}{dolfinx}\PYG{o}{.}\PYG{n}{fem}\PYG{o}{.}\PYG{n}{Function}\PYG{p}{,} \PYG{n}{scale}\PYG{o}{=}\PYG{l+m+mf}{1.0}\PYG{p}{,} \PYG{n}{savefig}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{savename}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}\PYGZdq{}}\PYG{p}{):}
+\PYG{+w}{    }\PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}}
+\PYG{l+s+sd}{    Plot a mixed function with a vector and scalar component. Mostly}
+\PYG{l+s+sd}{    compied from dokken tutorial.}
+\PYG{l+s+sd}{    }
+\PYG{l+s+sd}{    \PYGZdq{}\PYGZdq{}\PYGZdq{}}
+    \PYG{n}{u\PYGZus{}c} \PYG{o}{=} \PYG{n}{mixed\PYGZus{}function}\PYG{o}{.}\PYG{n}{sub}\PYG{p}{(}\PYG{l+m+mi}{0}\PYG{p}{)}\PYG{o}{.}\PYG{n}{collapse}\PYG{p}{()}
+    \PYG{n}{p\PYGZus{}c} \PYG{o}{=} \PYG{n}{mixed\PYGZus{}function}\PYG{o}{.}\PYG{n}{sub}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{)}\PYG{o}{.}\PYG{n}{collapse}\PYG{p}{()}
+
+    \PYG{n}{u\PYGZus{}grid} \PYG{o}{=} \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{UnstructuredGrid}\PYG{p}{(}\PYG{o}{*}\PYG{n}{dolfinx}\PYG{o}{.}\PYG{n}{plot}\PYG{o}{.}\PYG{n}{vtk\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{u\PYGZus{}c}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{p}{))}
+
+    \PYG{c+c1}{\PYGZsh{} Pad u to be 3D}
+    \PYG{n}{gdim} \PYG{o}{=} \PYG{n}{u\PYGZus{}c}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{o}{.}\PYG{n}{geometry}\PYG{o}{.}\PYG{n}{dim}
+    \PYG{k}{assert} \PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{u\PYGZus{}c}\PYG{p}{)} \PYG{o}{==} \PYG{n}{gdim}
+    \PYG{n}{u\PYGZus{}values} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{zeros}\PYG{p}{((}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{u\PYGZus{}c}\PYG{o}{.}\PYG{n}{x}\PYG{o}{.}\PYG{n}{array}\PYG{p}{)} \PYG{o}{//} \PYG{n}{gdim}\PYG{p}{,} \PYG{l+m+mi}{3}\PYG{p}{),} \PYG{n}{dtype}\PYG{o}{=}\PYG{n}{np}\PYG{o}{.}\PYG{n}{float64}\PYG{p}{)}
+    \PYG{n}{u\PYGZus{}values}\PYG{p}{[:,} \PYG{p}{:}\PYG{n}{gdim}\PYG{p}{]} \PYG{o}{=} \PYG{n}{u\PYGZus{}c}\PYG{o}{.}\PYG{n}{x}\PYG{o}{.}\PYG{n}{array}\PYG{o}{.}\PYG{n}{real}\PYG{o}{.}\PYG{n}{reshape}\PYG{p}{((}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{gdim}\PYG{p}{))}
+
+    \PYG{c+c1}{\PYGZsh{} Create a point cloud of glyphs}
+    \PYG{n}{u\PYGZus{}grid}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}u\PYGZdq{}}\PYG{p}{]} \PYG{o}{=} \PYG{n}{u\PYGZus{}values}
+    \PYG{n}{glyphs} \PYG{o}{=} \PYG{n}{u\PYGZus{}grid}\PYG{o}{.}\PYG{n}{glyph}\PYG{p}{(}\PYG{n}{orient}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}u\PYGZdq{}}\PYG{p}{,} \PYG{n}{factor}\PYG{o}{=}\PYG{n}{scale}\PYG{p}{)}
+    \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{set\PYGZus{}jupyter\PYGZus{}backend}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}static\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{plotter} \PYG{o}{=} \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{Plotter}\PYG{p}{()}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{add\PYGZus{}key\PYGZus{}event}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Escape\PYGZdq{}}\PYG{p}{,} \PYG{k}{lambda}\PYG{p}{:} \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{close}\PYG{p}{())}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{add\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{u\PYGZus{}grid}\PYG{p}{,} \PYG{n}{show\PYGZus{}edges}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{show\PYGZus{}scalar\PYGZus{}bar}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{)}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{add\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{glyphs}\PYG{p}{)}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{view\PYGZus{}xy}\PYG{p}{()}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{show}\PYG{p}{()}
+    \PYG{k}{if} \PYG{n}{savefig}\PYG{p}{:}
+        \PYG{c+c1}{\PYGZsh{}check if figs folder exists and create it if not}
+        \PYG{n}{folder\PYGZus{}path} \PYG{o}{=} \PYG{n}{Path}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}figs\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{folder\PYGZus{}path}\PYG{o}{.}\PYG{n}{mkdir}\PYG{p}{(}\PYG{n}{parents}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{,} \PYG{n}{exist\PYGZus{}ok}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+        \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{screenshot}\PYG{p}{(}\PYG{l+s+sa}{r}\PYG{l+s+s2}{\PYGZdq{}figs/velocity\PYGZus{}\PYGZdq{}} \PYG{o}{+} \PYG{n}{savename} \PYG{o}{+} \PYG{l+s+s2}{\PYGZdq{}.png\PYGZdq{}}\PYG{p}{,} \PYG{n}{transparent\PYGZus{}background}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+
+    \PYG{n}{p\PYGZus{}grid} \PYG{o}{=} \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{UnstructuredGrid}\PYG{p}{(}\PYG{o}{*}\PYG{n}{dolfinx}\PYG{o}{.}\PYG{n}{plot}\PYG{o}{.}\PYG{n}{vtk\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{p\PYGZus{}c}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{p}{))}
+    \PYG{n}{p\PYGZus{}grid}\PYG{o}{.}\PYG{n}{point\PYGZus{}data}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}p\PYGZdq{}}\PYG{p}{]} \PYG{o}{=} \PYG{n}{p\PYGZus{}c}\PYG{o}{.}\PYG{n}{x}\PYG{o}{.}\PYG{n}{array}
+    \PYG{n}{plotter\PYGZus{}p} \PYG{o}{=} \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{Plotter}\PYG{p}{()}
+    \PYG{n}{plotter\PYGZus{}p}\PYG{o}{.}\PYG{n}{add\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{p\PYGZus{}grid}\PYG{p}{,} \PYG{n}{show\PYGZus{}edges}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{)}
+    \PYG{n}{plotter\PYGZus{}p}\PYG{o}{.}\PYG{n}{view\PYGZus{}xy}\PYG{p}{()}
+    \PYG{n}{plotter\PYGZus{}p}\PYG{o}{.}\PYG{n}{show}\PYG{p}{()}
+    \PYG{k}{if} \PYG{n}{savefig}\PYG{p}{:}
+        \PYG{n}{plotter\PYGZus{}p}\PYG{o}{.}\PYG{n}{screenshot}\PYG{p}{(}\PYG{l+s+sa}{r}\PYG{l+s+s2}{\PYGZdq{}figs/pressure\PYGZus{}\PYGZdq{}} \PYG{o}{+} \PYG{n}{savename} \PYG{o}{+} \PYG{l+s+s2}{\PYGZdq{}.png\PYGZdq{}}\PYG{p}{,} \PYG{n}{transparent\PYGZus{}background}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+        
+    
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{loglog\PYGZus{}plot}\PYG{p}{(}\PYG{n}{Hs67}\PYG{p}{,} \PYG{n}{Es67}\PYG{p}{,} \PYG{n}{Hs66}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{):}
+\PYG{+w}{    }\PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}}
+\PYG{l+s+sd}{    Plot log\PYGZhy{}log error plots for the two different boundary conditions.}
+\PYG{l+s+sd}{    \PYGZdq{}\PYGZdq{}\PYGZdq{}}
+    \PYG{n}{fig}\PYG{p}{,} \PYG{n}{axes} \PYG{o}{=} \PYG{n}{plt}\PYG{o}{.}\PYG{n}{subplots}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{,} \PYG{n}{figsize}\PYG{o}{=}\PYG{p}{(}\PYG{l+m+mi}{12}\PYG{p}{,} \PYG{l+m+mi}{6}\PYG{p}{))}
+    \PYG{n}{fig}\PYG{o}{.}\PYG{n}{suptitle}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Log\PYGZhy{}Log Error plots\PYGZdq{}}\PYG{p}{,} \PYG{n}{fontsize}\PYG{o}{=}\PYG{l+m+mi}{16}\PYG{p}{)}
+
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}title}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Neumann BC on Bottom Wall P3\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs67}\PYG{p}{,} \PYG{n}{Es67}\PYG{p}{[:,} \PYG{l+m+mi}{0}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error solution\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs67}\PYG{p}{,} \PYG{n}{Es67}\PYG{p}{[:,} \PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error shear stress\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}xlabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}h\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}ylabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Error\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{legend}\PYG{p}{()}
+
+    \PYG{n}{Hs\PYGZus{}same} \PYG{o}{=} \PYG{n}{Hs66}\PYG{p}{[:,} \PYG{l+m+mi}{0}\PYG{p}{]}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}title}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Neumann BC (do nothing) on Right Wall\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs\PYGZus{}same}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{[:,} \PYG{l+m+mi}{0}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error P4\PYGZhy{}P3\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs\PYGZus{}same}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{[:,} \PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error P4\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs\PYGZus{}same}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{[:,} \PYG{l+m+mi}{2}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error P3\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs\PYGZus{}same}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{[:,} \PYG{l+m+mi}{3}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error P3\PYGZhy{}P1\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}xlabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}h\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}ylabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Error\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{legend}\PYG{p}{()}
+
+    \PYG{n}{plt}\PYG{o}{.}\PYG{n}{tight\PYGZus{}layout}\PYG{p}{()}
+    \PYG{n}{plt}\PYG{o}{.}\PYG{n}{savefig}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}figs/loglog.png\PYGZdq{}}\PYG{p}{,} \PYG{n}{dpi}\PYG{o}{=}\PYG{l+m+mi}{300}\PYG{p}{)}
+    \PYG{n}{plt}\PYG{o}{.}\PYG{n}{show}\PYG{p}{()}
+    \PYG{n}{plt}\PYG{o}{.}\PYG{n}{close}\PYG{p}{()}
+    
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{convergence\PYGZus{}rate\PYGZus{}plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{,} \PYG{n}{rates66}\PYG{p}{,} \PYG{n}{rates\PYGZus{}sol67}\PYG{p}{,} \PYG{n}{rates\PYGZus{}shear67}\PYG{p}{):}
+\PYG{+w}{    }\PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}}
+\PYG{l+s+sd}{    Plot convergence rates for the two different boundary conditions.}
+\PYG{l+s+sd}{    \PYGZdq{}\PYGZdq{}\PYGZdq{}}
+    \PYG{n}{fig}\PYG{p}{,} \PYG{n}{axes} \PYG{o}{=} \PYG{n}{plt}\PYG{o}{.}\PYG{n}{subplots}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{,} \PYG{n}{figsize}\PYG{o}{=}\PYG{p}{(}\PYG{l+m+mi}{12}\PYG{p}{,} \PYG{l+m+mi}{6}\PYG{p}{))}
+    \PYG{n}{fig}\PYG{o}{.}\PYG{n}{suptitle}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Convergence Rates\PYGZdq{}}\PYG{p}{,} \PYG{n}{fontsize}\PYG{o}{=}\PYG{l+m+mi}{16}\PYG{p}{)}
+    
+    \PYG{n}{x} \PYG{o}{=} \PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{]}
+    
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates66}\PYG{p}{[:,} \PYG{l+m+mi}{0}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}P4\PYGZhy{}P3\PYGZdq{}}\PYG{p}{,} \PYG{n}{color}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}blue\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{x}\PYG{p}{,}  \PYG{l+m+mi}{4}\PYG{o}{*}\PYG{n}{x}\PYG{p}{,} \PYG{n}{color}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}blue\PYGZdq{}}\PYG{p}{,} \PYG{n}{linestyle}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}\PYGZhy{}\PYGZhy{}\PYGZdq{}}\PYG{p}{)}
+    
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates66}\PYG{p}{[:,} \PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}P4\PYGZhy{}P2\PYGZdq{}}\PYG{p}{,} \PYG{n}{color}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}orange\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{x}\PYG{p}{,}  \PYG{l+m+mi}{3}\PYG{o}{*}\PYG{n}{x}\PYG{p}{,} \PYG{n}{linestyle}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}\PYGZhy{}\PYGZhy{}\PYGZdq{}}\PYG{p}{,} \PYG{n}{color}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}orange\PYGZdq{}}\PYG{p}{)}
+    
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates66}\PYG{p}{[:,} \PYG{l+m+mi}{2}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}P3\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates66}\PYG{p}{[:,} \PYG{l+m+mi}{3}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}P3\PYGZhy{}P1\PYGZdq{}}\PYG{p}{,} \PYG{n}{color}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}red\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{x}\PYG{p}{,}  \PYG{l+m+mi}{2}\PYG{o}{*}\PYG{n}{x}\PYG{p}{,} \PYG{n}{linestyle}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}\PYGZhy{}\PYGZhy{}\PYGZdq{}}\PYG{p}{,} \PYG{n}{color}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}red\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}ylabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Convergence rate\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}xlabel}\PYG{p}{(}\PYG{l+s+sa}{r}\PYG{l+s+s2}{\PYGZdq{}\PYGZdl{}N\PYGZdl{}\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{legend}\PYG{p}{()}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}title}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Do Nothing BC on Right Wall\PYGZdq{}}\PYG{p}{)}
+
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates\PYGZus{}sol67}\PYG{p}{,} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Bottom BC\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates\PYGZus{}shear67}\PYG{p}{,} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Shear Stress Left Wall\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{x}\PYG{p}{,}  \PYG{l+m+mi}{3}\PYG{o}{*}\PYG{n}{x}\PYG{p}{,} \PYG{n}{linestyle}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}\PYGZhy{}\PYGZhy{}\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}ylabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Convergence rate\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}xlabel}\PYG{p}{(}\PYG{l+s+sa}{r}\PYG{l+s+s2}{\PYGZdq{}\PYGZdl{}N\PYGZdl{}\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{legend}\PYG{p}{()}
+    \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}title}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Neumann BC on Bottom Wall P3\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+
+    \PYG{n}{plt}\PYG{o}{.}\PYG{n}{tight\PYGZus{}layout}\PYG{p}{(}\PYG{n}{rect}\PYG{o}{=}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{,} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mf}{0.93}\PYG{p}{])}
+    \PYG{n}{plt}\PYG{o}{.}\PYG{n}{savefig}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}figs/convergence\PYGZus{}rates.png\PYGZdq{}}\PYG{p}{,} \PYG{n}{dpi}\PYG{o}{=}\PYG{l+m+mi}{300}\PYG{p}{)}
+    \PYG{n}{plt}\PYG{o}{.}\PYG{n}{show}\PYG{p}{()}
+    \PYG{n}{plt}\PYG{o}{.}\PYG{n}{close}\PYG{p}{()}
+
+    
+\end{Verbatim}

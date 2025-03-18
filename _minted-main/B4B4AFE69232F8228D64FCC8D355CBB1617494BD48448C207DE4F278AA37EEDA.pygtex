@@ -1,0 +1,298 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k+kn}{from}\PYG{+w}{ }\PYG{n+nn}{dolfinx}\PYG{+w}{ }\PYG{k+kn}{import} \PYG{n}{fem}\PYG{p}{,} \PYG{n}{mesh}\PYG{p}{,} \PYG{n}{la}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{basix.ufl}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{ufl}
+\PYG{k+kn}{from}\PYG{+w}{ }\PYG{n+nn}{mpi4py}\PYG{+w}{ }\PYG{k+kn}{import} \PYG{n}{MPI}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{pyvista}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{dolfinx}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{numpy}\PYG{+w}{ }\PYG{k}{as}\PYG{+w}{ }\PYG{n+nn}{np}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{scipy.sparse}
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{matplotlib.pyplot}\PYG{+w}{ }\PYG{k}{as}\PYG{+w}{ }\PYG{n+nn}{plt}
+\PYG{k+kn}{from}\PYG{+w}{ }\PYG{n+nn}{pathlib}\PYG{+w}{ }\PYG{k+kn}{import} \PYG{n}{Path}
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{visualize\PYGZus{}mixed}\PYG{p}{(}\PYG{n}{mixed\PYGZus{}function}\PYG{p}{:} \PYG{n}{dolfinx}\PYG{o}{.}\PYG{n}{fem}\PYG{o}{.}\PYG{n}{Function}\PYG{p}{,} \PYG{n}{scale}\PYG{o}{=}\PYG{l+m+mf}{1.0}\PYG{p}{,} \PYG{n}{savefig}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{savename}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}\PYGZdq{}}\PYG{p}{):}
+    \PYG{n}{u\PYGZus{}c} \PYG{o}{=} \PYG{n}{mixed\PYGZus{}function}\PYG{o}{.}\PYG{n}{sub}\PYG{p}{(}\PYG{l+m+mi}{0}\PYG{p}{)}\PYG{o}{.}\PYG{n}{collapse}\PYG{p}{()}
+    \PYG{n}{p\PYGZus{}c} \PYG{o}{=} \PYG{n}{mixed\PYGZus{}function}\PYG{o}{.}\PYG{n}{sub}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{)}\PYG{o}{.}\PYG{n}{collapse}\PYG{p}{()}
+
+    \PYG{n}{u\PYGZus{}grid} \PYG{o}{=} \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{UnstructuredGrid}\PYG{p}{(}\PYG{o}{*}\PYG{n}{dolfinx}\PYG{o}{.}\PYG{n}{plot}\PYG{o}{.}\PYG{n}{vtk\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{u\PYGZus{}c}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{p}{))}
+
+    \PYG{c+c1}{\PYGZsh{} Pad u to be 3D}
+    \PYG{n}{gdim} \PYG{o}{=} \PYG{n}{u\PYGZus{}c}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{o}{.}\PYG{n}{geometry}\PYG{o}{.}\PYG{n}{dim}
+    \PYG{k}{assert} \PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{u\PYGZus{}c}\PYG{p}{)} \PYG{o}{==} \PYG{n}{gdim}
+    \PYG{n}{u\PYGZus{}values} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{zeros}\PYG{p}{((}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{u\PYGZus{}c}\PYG{o}{.}\PYG{n}{x}\PYG{o}{.}\PYG{n}{array}\PYG{p}{)} \PYG{o}{//} \PYG{n}{gdim}\PYG{p}{,} \PYG{l+m+mi}{3}\PYG{p}{),} \PYG{n}{dtype}\PYG{o}{=}\PYG{n}{np}\PYG{o}{.}\PYG{n}{float64}\PYG{p}{)}
+    \PYG{n}{u\PYGZus{}values}\PYG{p}{[:,} \PYG{p}{:}\PYG{n}{gdim}\PYG{p}{]} \PYG{o}{=} \PYG{n}{u\PYGZus{}c}\PYG{o}{.}\PYG{n}{x}\PYG{o}{.}\PYG{n}{array}\PYG{o}{.}\PYG{n}{real}\PYG{o}{.}\PYG{n}{reshape}\PYG{p}{((}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{gdim}\PYG{p}{))}
+
+    \PYG{c+c1}{\PYGZsh{} Create a point cloud of glyphs}
+    \PYG{n}{u\PYGZus{}grid}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}u\PYGZdq{}}\PYG{p}{]} \PYG{o}{=} \PYG{n}{u\PYGZus{}values}
+    \PYG{n}{glyphs} \PYG{o}{=} \PYG{n}{u\PYGZus{}grid}\PYG{o}{.}\PYG{n}{glyph}\PYG{p}{(}\PYG{n}{orient}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}u\PYGZdq{}}\PYG{p}{,} \PYG{n}{factor}\PYG{o}{=}\PYG{n}{scale}\PYG{p}{)}
+    \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{set\PYGZus{}jupyter\PYGZus{}backend}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}static\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{plotter} \PYG{o}{=} \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{Plotter}\PYG{p}{()}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{add\PYGZus{}key\PYGZus{}event}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Escape\PYGZdq{}}\PYG{p}{,} \PYG{k}{lambda}\PYG{p}{:} \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{close}\PYG{p}{())}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{add\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{u\PYGZus{}grid}\PYG{p}{,} \PYG{n}{show\PYGZus{}edges}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{show\PYGZus{}scalar\PYGZus{}bar}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{)}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{add\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{glyphs}\PYG{p}{)}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{view\PYGZus{}xy}\PYG{p}{()}
+    \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{show}\PYG{p}{()}
+    \PYG{k}{if} \PYG{n}{savefig}\PYG{p}{:}
+        \PYG{c+c1}{\PYGZsh{}check if figs folder exists and create it if not}
+        \PYG{n}{folder\PYGZus{}path} \PYG{o}{=} \PYG{n}{Path}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}figs\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{folder\PYGZus{}path}\PYG{o}{.}\PYG{n}{mkdir}\PYG{p}{(}\PYG{n}{parents}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{,} \PYG{n}{exist\PYGZus{}ok}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+        \PYG{n}{plotter}\PYG{o}{.}\PYG{n}{screenshot}\PYG{p}{(}\PYG{l+s+sa}{r}\PYG{l+s+s2}{\PYGZdq{}figs/velocity\PYGZus{}\PYGZdq{}} \PYG{o}{+} \PYG{n}{savename} \PYG{o}{+} \PYG{l+s+s2}{\PYGZdq{}.png\PYGZdq{}}\PYG{p}{,} \PYG{n}{transparent\PYGZus{}background}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+
+    \PYG{n}{p\PYGZus{}grid} \PYG{o}{=} \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{UnstructuredGrid}\PYG{p}{(}\PYG{o}{*}\PYG{n}{dolfinx}\PYG{o}{.}\PYG{n}{plot}\PYG{o}{.}\PYG{n}{vtk\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{p\PYGZus{}c}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{p}{))}
+    \PYG{n}{p\PYGZus{}grid}\PYG{o}{.}\PYG{n}{point\PYGZus{}data}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}p\PYGZdq{}}\PYG{p}{]} \PYG{o}{=} \PYG{n}{p\PYGZus{}c}\PYG{o}{.}\PYG{n}{x}\PYG{o}{.}\PYG{n}{array}
+    \PYG{n}{plotter\PYGZus{}p} \PYG{o}{=} \PYG{n}{pyvista}\PYG{o}{.}\PYG{n}{Plotter}\PYG{p}{()}
+    \PYG{n}{plotter\PYGZus{}p}\PYG{o}{.}\PYG{n}{add\PYGZus{}mesh}\PYG{p}{(}\PYG{n}{p\PYGZus{}grid}\PYG{p}{,} \PYG{n}{show\PYGZus{}edges}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{)}
+    \PYG{n}{plotter\PYGZus{}p}\PYG{o}{.}\PYG{n}{view\PYGZus{}xy}\PYG{p}{()}
+    \PYG{n}{plotter\PYGZus{}p}\PYG{o}{.}\PYG{n}{show}\PYG{p}{()}
+    \PYG{k}{if} \PYG{n}{savefig}\PYG{p}{:}
+        \PYG{n}{plotter\PYGZus{}p}\PYG{o}{.}\PYG{n}{screenshot}\PYG{p}{(}\PYG{l+s+sa}{r}\PYG{l+s+s2}{\PYGZdq{}figs/pressure\PYGZus{}\PYGZdq{}} \PYG{o}{+} \PYG{n}{savename} \PYG{o}{+} \PYG{l+s+s2}{\PYGZdq{}.png\PYGZdq{}}\PYG{p}{,} \PYG{n}{transparent\PYGZus{}background}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{boundary\PYGZus{}functions\PYGZus{}factory}\PYG{p}{(}\PYG{n}{neumann\PYGZus{}boundary}\PYG{p}{:} \PYG{n+nb}{str} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}bottom\PYGZdq{}}\PYG{p}{):}
+    \PYG{n}{all\PYGZus{}boundary\PYGZus{}conditions} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}left\PYGZsq{}} \PYG{p}{:} \PYG{k}{lambda} \PYG{n}{x} \PYG{p}{:} \PYG{n}{np}\PYG{o}{.}\PYG{n}{isclose}\PYG{p}{(}\PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{],} \PYG{l+m+mf}{0.0}\PYG{p}{),} 
+                               \PYG{l+s+s1}{\PYGZsq{}bottom\PYGZsq{}} \PYG{p}{:} \PYG{k}{lambda} \PYG{n}{x} \PYG{p}{:} \PYG{n}{np}\PYG{o}{.}\PYG{n}{isclose}\PYG{p}{(}\PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{l+m+mf}{0.0}\PYG{p}{),} 
+                               \PYG{l+s+s1}{\PYGZsq{}right\PYGZsq{}} \PYG{p}{:} \PYG{k}{lambda} \PYG{n}{x}\PYG{p}{:} \PYG{n}{np}\PYG{o}{.}\PYG{n}{isclose}\PYG{p}{(}\PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{],} \PYG{l+m+mf}{1.0}\PYG{p}{),} 
+                               \PYG{l+s+s1}{\PYGZsq{}top\PYGZsq{}} \PYG{p}{:} \PYG{k}{lambda} \PYG{n}{x} \PYG{p}{:} \PYG{n}{np}\PYG{o}{.}\PYG{n}{isclose}\PYG{p}{(}\PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{l+m+mf}{1.0}\PYG{p}{)}
+    \PYG{p}{\PYGZcb{}}
+    \PYG{n}{on\PYGZus{}neumann} \PYG{o}{=} \PYG{n}{all\PYGZus{}boundary\PYGZus{}conditions}\PYG{o}{.}\PYG{n}{pop}\PYG{p}{(}\PYG{n}{neumann\PYGZus{}boundary}\PYG{p}{)}
+    \PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{on\PYGZus{}dirichlet}\PYG{p}{(}\PYG{n}{x}\PYG{p}{):}
+        \PYG{k}{return} \PYG{n}{np}\PYG{o}{.}\PYG{n}{logical\PYGZus{}or}\PYG{o}{.}\PYG{n}{reduce}\PYG{p}{([}\PYG{n}{func}\PYG{p}{(}\PYG{n}{x}\PYG{p}{)} \PYG{k}{for} \PYG{n}{func} \PYG{o+ow}{in} \PYG{n}{all\PYGZus{}boundary\PYGZus{}conditions}\PYG{o}{.}\PYG{n}{values}\PYG{p}{()])}
+        
+    \PYG{k}{return} \PYG{n}{on\PYGZus{}dirichlet}\PYG{p}{,} \PYG{n}{on\PYGZus{}neumann}  
+    
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{u\PYGZus{}exact\PYGZus{}numpy}\PYG{p}{(}\PYG{n}{x}\PYG{p}{):}
+    \PYG{k}{return} \PYG{n}{np}\PYG{o}{.}\PYG{n}{sin}\PYG{p}{(}\PYG{n}{np}\PYG{o}{.}\PYG{n}{pi} \PYG{o}{*} \PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]),} \PYG{n}{np}\PYG{o}{.}\PYG{n}{cos}\PYG{p}{(}\PYG{n}{np}\PYG{o}{.}\PYG{n}{pi} \PYG{o}{*} \PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{])}
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{p\PYGZus{}exact\PYGZus{}numpy}\PYG{p}{(}\PYG{n}{x}\PYG{p}{):}
+    \PYG{k}{return} \PYG{n}{np}\PYG{o}{.}\PYG{n}{sin}\PYG{p}{(}\PYG{l+m+mi}{2}\PYG{o}{*}\PYG{n}{np}\PYG{o}{.}\PYG{n}{pi} \PYG{o}{*} \PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{])}
+
+
+\PYG{c+c1}{\PYGZsh{}def u\PYGZus{}exact\PYGZus{}numpy(x):\PYGZsh{}Example in kents book/dokken tutroial}
+\PYG{c+c1}{\PYGZsh{}    return np.vstack((x[1]*(1\PYGZhy{}x[1]), np.zeros\PYGZus{}like(x[0])))}
+
+\PYG{c+c1}{\PYGZsh{}def p\PYGZus{}exact\PYGZus{}numpy(x): \PYGZsh{}Example in kents book/dokken tutroial}
+\PYG{c+c1}{\PYGZsh{}    return \PYGZhy{}2+2*x[0]}
+
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{solve\PYGZus{}stokes}\PYG{p}{(}\PYG{n}{N}\PYG{p}{,} \PYG{n}{polypair}\PYG{p}{,} \PYG{n}{neumann\PYGZus{}boundary} \PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}right\PYGZdq{}}\PYG{p}{,} \PYG{n}{enforce\PYGZus{}neumann}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{plot}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{savefig}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{savename}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}\PYGZdq{}}\PYG{p}{):}
+        
+    \PYG{n}{on\PYGZus{}dirichlet}\PYG{p}{,} \PYG{n}{on\PYGZus{}neumann} \PYG{o}{=} \PYG{n}{boundary\PYGZus{}functions\PYGZus{}factory}\PYG{p}{(}\PYG{n}{neumann\PYGZus{}boundary}\PYG{p}{)}
+    
+    \PYG{n}{p\PYGZus{}u}\PYG{p}{,} \PYG{n}{p\PYGZus{}p} \PYG{o}{=} \PYG{n}{polypair}
+    \PYG{n}{domain} \PYG{o}{=} \PYG{n}{mesh}\PYG{o}{.}\PYG{n}{create\PYGZus{}unit\PYGZus{}square}\PYG{p}{(}\PYG{n}{MPI}\PYG{o}{.}\PYG{n}{COMM\PYGZus{}WORLD}\PYG{p}{,} \PYG{n}{N}\PYG{p}{,} \PYG{n}{N}\PYG{p}{)}
+
+
+    \PYG{n}{el\PYGZus{}u} \PYG{o}{=} \PYG{n}{basix}\PYG{o}{.}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{element}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Lagrange\PYGZdq{}}\PYG{p}{,} \PYG{n}{domain}\PYG{o}{.}\PYG{n}{basix\PYGZus{}cell}\PYG{p}{(),} \PYG{n}{p\PYGZus{}u}\PYG{p}{,} \PYG{n}{shape}\PYG{o}{=}\PYG{p}{(}\PYG{n}{domain}\PYG{o}{.}\PYG{n}{geometry}\PYG{o}{.}\PYG{n}{dim}\PYG{p}{,))}
+    \PYG{n}{el\PYGZus{}p} \PYG{o}{=} \PYG{n}{basix}\PYG{o}{.}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{element}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Lagrange\PYGZdq{}}\PYG{p}{,} \PYG{n}{domain}\PYG{o}{.}\PYG{n}{basix\PYGZus{}cell}\PYG{p}{(),} \PYG{n}{p\PYGZus{}p}\PYG{p}{)}
+    \PYG{n}{el\PYGZus{}mixed} \PYG{o}{=} \PYG{n}{basix}\PYG{o}{.}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{mixed\PYGZus{}element}\PYG{p}{([}\PYG{n}{el\PYGZus{}u}\PYG{p}{,} \PYG{n}{el\PYGZus{}p}\PYG{p}{])}    
+
+    \PYG{n}{W} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{functionspace}\PYG{p}{(}\PYG{n}{domain}\PYG{p}{,} \PYG{n}{el\PYGZus{}mixed}\PYG{p}{)}
+
+    \PYG{n}{u}\PYG{p}{,} \PYG{n}{p} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{TrialFunctions}\PYG{p}{(}\PYG{n}{W}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{}linear combs of basis functions}
+    \PYG{n}{v}\PYG{p}{,} \PYG{n}{q} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{TestFunctions}\PYG{p}{(}\PYG{n}{W}\PYG{p}{)}
+
+    \PYG{n}{x} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{SpatialCoordinate}\PYG{p}{(}\PYG{n}{domain}\PYG{p}{)}
+    \PYG{n}{u\PYGZus{}exact\PYGZus{}ufl} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{as\PYGZus{}vector}\PYG{p}{([}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{sin}\PYG{p}{(}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{pi} \PYG{o}{*} \PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]),} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{cos}\PYG{p}{(}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{pi} \PYG{o}{*} \PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{])])}
+    \PYG{n}{p\PYGZus{}exact\PYGZus{}ufl} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{sin}\PYG{p}{(}\PYG{l+m+mi}{2} \PYG{o}{*} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{pi} \PYG{o}{*} \PYG{n}{x}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{])}
+    
+    
+    \PYG{n}{f} \PYG{o}{=} \PYG{o}{\PYGZhy{}}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{div}\PYG{p}{(}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact\PYGZus{}ufl}\PYG{p}{))} \PYG{o}{\PYGZhy{}} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{p\PYGZus{}exact\PYGZus{}ufl}\PYG{p}{)}
+    \PYG{c+c1}{\PYGZsh{}f = fem.Constant(domain, dolfinx.default\PYGZus{}scalar\PYGZus{}type((0, 0))) \PYGZsh{}Example in kents book/dokken tutroial}
+    \PYG{n}{F} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{inner}\PYG{p}{(}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{u}\PYG{p}{),} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{v}\PYG{p}{))} \PYG{o}{*} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{dx}
+    \PYG{n}{F} \PYG{o}{+=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{inner}\PYG{p}{(}\PYG{n}{p}\PYG{p}{,} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{div}\PYG{p}{(}\PYG{n}{v}\PYG{p}{))} \PYG{o}{*} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{dx}
+    \PYG{n}{F} \PYG{o}{+=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{inner}\PYG{p}{(}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{div}\PYG{p}{(}\PYG{n}{u}\PYG{p}{),} \PYG{n}{q}\PYG{p}{)} \PYG{o}{*} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{dx}
+    \PYG{n}{F} \PYG{o}{\PYGZhy{}=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{inner}\PYG{p}{(}\PYG{n}{f}\PYG{p}{,} \PYG{n}{v}\PYG{p}{)} \PYG{o}{*} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{dx}
+    
+    \PYG{k}{if} \PYG{n}{enforce\PYGZus{}neumann}\PYG{p}{:} 
+        \PYG{c+c1}{\PYGZsh{}Neumann boundary condition}
+        \PYG{n}{facets} \PYG{o}{=} \PYG{n}{mesh}\PYG{o}{.}\PYG{n}{locate\PYGZus{}entities\PYGZus{}boundary}\PYG{p}{(}\PYG{n}{domain}\PYG{p}{,} \PYG{n}{domain}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{dim} \PYG{o}{\PYGZhy{}} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{on\PYGZus{}neumann}\PYG{p}{)}
+        \PYG{n}{mt} \PYG{o}{=} \PYG{n}{mesh}\PYG{o}{.}\PYG{n}{meshtags}\PYG{p}{(}\PYG{n}{domain}\PYG{p}{,} \PYG{n}{domain}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{dim} \PYG{o}{\PYGZhy{}} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{facets}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{} passing 0, but i dont want to use tags here integrating over all of ds }
+        \PYG{n}{ds} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{Measure}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}ds\PYGZdq{}}\PYG{p}{,} \PYG{n}{domain}\PYG{o}{=}\PYG{n}{domain}\PYG{p}{,} \PYG{n}{subdomain\PYGZus{}data}\PYG{o}{=}\PYG{n}{mt}\PYG{p}{)}
+        \PYG{n}{n} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{FacetNormal}\PYG{p}{(}\PYG{n}{domain}\PYG{p}{)}
+        \PYG{n}{F} \PYG{o}{\PYGZhy{}=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{inner}\PYG{p}{((}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact\PYGZus{}ufl}\PYG{p}{)} \PYG{o}{\PYGZhy{}} \PYG{n}{p\PYGZus{}exact\PYGZus{}ufl}\PYG{o}{*}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{Identity}\PYG{p}{(}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact\PYGZus{}ufl}\PYG{p}{)))} \PYG{o}{*} \PYG{n}{n}\PYG{p}{,} \PYG{n}{v}\PYG{p}{)} \PYG{o}{*} \PYG{n}{ds}
+    \PYG{k}{else}\PYG{p}{:}
+        \PYG{k}{pass} \PYG{c+c1}{\PYGZsh{}Do nothing boundary condtion}
+    
+    \PYG{n}{a}\PYG{p}{,} \PYG{n}{L} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{system}\PYG{p}{(}\PYG{n}{F}\PYG{p}{)}
+
+
+    \PYG{n}{domain}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{create\PYGZus{}connectivity}\PYG{p}{(}\PYG{n}{domain}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{dim} \PYG{o}{\PYGZhy{}} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{domain}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{dim}\PYG{p}{)}
+    \PYG{n}{dir\PYGZus{}facets} \PYG{o}{=} \PYG{n}{mesh}\PYG{o}{.}\PYG{n}{locate\PYGZus{}entities\PYGZus{}boundary}\PYG{p}{(}\PYG{n}{domain}\PYG{p}{,} \PYG{n}{domain}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{dim} \PYG{o}{\PYGZhy{}} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{on\PYGZus{}dirichlet}\PYG{p}{)}
+
+    \PYG{n}{W0} \PYG{o}{=} \PYG{n}{W}\PYG{o}{.}\PYG{n}{sub}\PYG{p}{(}\PYG{l+m+mi}{0}\PYG{p}{)}
+    \PYG{n}{V}\PYG{p}{,} \PYG{n}{V\PYGZus{}to\PYGZus{}W0} \PYG{o}{=} \PYG{n}{W0}\PYG{o}{.}\PYG{n}{collapse}\PYG{p}{()}
+
+    \PYG{n}{W1} \PYG{o}{=} \PYG{n}{W}\PYG{o}{.}\PYG{n}{sub}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{)}
+    \PYG{n}{Q}\PYG{p}{,} \PYG{n}{Q\PYGZus{}to\PYGZus{}W1} \PYG{o}{=} \PYG{n}{W1}\PYG{o}{.}\PYG{n}{collapse}\PYG{p}{()}
+
+    
+    \PYG{n}{u\PYGZus{}exact} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{Function}\PYG{p}{(}\PYG{n}{V}\PYG{p}{)}
+    \PYG{n}{p\PYGZus{}exact} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{Function}\PYG{p}{(}\PYG{n}{Q}\PYG{p}{)}
+    \PYG{n}{p\PYGZus{}exact}\PYG{o}{.}\PYG{n}{interpolate}\PYG{p}{(}\PYG{n}{p\PYGZus{}exact\PYGZus{}numpy}\PYG{p}{)}
+    \PYG{n}{u\PYGZus{}exact}\PYG{o}{.}\PYG{n}{interpolate}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact\PYGZus{}numpy}\PYG{p}{)}
+
+    \PYG{c+c1}{\PYGZsh{}Dirichlet boundary conditions}
+    \PYG{n}{combined\PYGZus{}dofs} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{locate\PYGZus{}dofs\PYGZus{}topological}\PYG{p}{((}\PYG{n}{W0}\PYG{p}{,} \PYG{n}{V}\PYG{p}{),} \PYG{n}{domain}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{dim} \PYG{o}{\PYGZhy{}} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{dir\PYGZus{}facets}\PYG{p}{)}
+    \PYG{n}{bc} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{dirichletbc}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{combined\PYGZus{}dofs}\PYG{p}{,} \PYG{n}{W0}\PYG{p}{)}
+    \PYG{n}{bcs} \PYG{o}{=} \PYG{p}{[}\PYG{n}{bc}\PYG{p}{]}
+  
+    \PYG{c+c1}{\PYGZsh{}Form, create, assemble and solve system}
+    \PYG{n}{a\PYGZus{}compiled} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{form}\PYG{p}{(}\PYG{n}{a}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{}create c code for the form}
+    \PYG{n}{L\PYGZus{}compiled} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{form}\PYG{p}{(}\PYG{n}{L}\PYG{p}{)}
+    \PYG{n}{A} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{create\PYGZus{}matrix}\PYG{p}{(}\PYG{n}{a\PYGZus{}compiled}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{}create matrix code for the form}
+    \PYG{n}{b} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{create\PYGZus{}vector}\PYG{p}{(}\PYG{n}{L\PYGZus{}compiled}\PYG{p}{)}
+    \PYG{n}{A\PYGZus{}scipy} \PYG{o}{=} \PYG{n}{A}\PYG{o}{.}\PYG{n}{to\PYGZus{}scipy}\PYG{p}{()}
+    \PYG{n}{fem}\PYG{o}{.}\PYG{n}{assemble\PYGZus{}matrix}\PYG{p}{(}\PYG{n}{A}\PYG{p}{,} \PYG{n}{a\PYGZus{}compiled}\PYG{p}{,} \PYG{n}{bcs}\PYG{o}{=}\PYG{n}{bcs}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{}actually fill the matrix}
+    \PYG{n}{fem}\PYG{o}{.}\PYG{n}{assemble\PYGZus{}vector}\PYG{p}{(}\PYG{n}{b}\PYG{o}{.}\PYG{n}{array}\PYG{p}{,} \PYG{n}{L\PYGZus{}compiled}\PYG{p}{)}
+    \PYG{n}{fem}\PYG{o}{.}\PYG{n}{apply\PYGZus{}lifting}\PYG{p}{(}\PYG{n}{b}\PYG{o}{.}\PYG{n}{array}\PYG{p}{,} \PYG{p}{[}\PYG{n}{a\PYGZus{}compiled}\PYG{p}{],} \PYG{p}{[}\PYG{n}{bcs}\PYG{p}{])} 
+    \PYG{n}{b}\PYG{o}{.}\PYG{n}{scatter\PYGZus{}reverse}\PYG{p}{(}\PYG{n}{la}\PYG{o}{.}\PYG{n}{InsertMode}\PYG{o}{.}\PYG{n}{add}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{}tell ghosted vector to add values to local dofs}
+    \PYG{n}{bc}\PYG{o}{.}\PYG{n}{set}\PYG{p}{(}\PYG{n}{b}\PYG{o}{.}\PYG{n}{array}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{}set the boundary condition values to the vector}
+
+    \PYG{n}{A\PYGZus{}inv} \PYG{o}{=} \PYG{n}{scipy}\PYG{o}{.}\PYG{n}{sparse}\PYG{o}{.}\PYG{n}{linalg}\PYG{o}{.}\PYG{n}{splu}\PYG{p}{(}\PYG{n}{A\PYGZus{}scipy}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{}lu factorization}
+    
+    \PYG{n}{wh} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{Function}\PYG{p}{(}\PYG{n}{W}\PYG{p}{)}
+    \PYG{n}{wh}\PYG{o}{.}\PYG{n}{x}\PYG{o}{.}\PYG{n}{array}\PYG{p}{[:]} \PYG{o}{=} \PYG{n}{A\PYGZus{}inv}\PYG{o}{.}\PYG{n}{solve}\PYG{p}{(}\PYG{n}{b}\PYG{o}{.}\PYG{n}{array}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{}solve Ax=b and put the solution in wh}
+    \PYG{k}{if} \PYG{n}{plot}\PYG{p}{:}
+        \PYG{n}{visualize\PYGZus{}mixed}\PYG{p}{(}\PYG{n}{wh}\PYG{p}{,} \PYG{n}{scale}\PYG{o}{=}\PYG{l+m+mf}{0.1}\PYG{p}{,} \PYG{n}{savefig}\PYG{o}{=}\PYG{n}{savefig}\PYG{p}{,} \PYG{n}{savename}\PYG{o}{=}\PYG{n}{savename}\PYG{p}{)}
+
+    \PYG{n}{uh} \PYG{o}{=} \PYG{n}{wh}\PYG{o}{.}\PYG{n}{sub}\PYG{p}{(}\PYG{l+m+mi}{0}\PYG{p}{)}\PYG{o}{.}\PYG{n}{collapse}\PYG{p}{()}
+    \PYG{n}{ph} \PYG{o}{=} \PYG{n}{wh}\PYG{o}{.}\PYG{n}{sub}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{)}\PYG{o}{.}\PYG{n}{collapse}\PYG{p}{()}
+    
+    \PYG{k}{return} \PYG{n}{uh}\PYG{p}{,} \PYG{n}{ph}\PYG{p}{,} \PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{p\PYGZus{}exact}
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{calculate\PYGZus{}L2\PYGZus{}error}\PYG{p}{(}\PYG{n}{exact}\PYG{p}{,} \PYG{n}{approx}\PYG{p}{,} \PYG{n}{comm}\PYG{o}{=}\PYG{k+kc}{None}\PYG{p}{,} \PYG{n}{mesure} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{dx}\PYG{p}{):}
+    \PYG{k}{if} \PYG{o+ow}{not} \PYG{n}{comm}\PYG{p}{:}
+        \PYG{n}{comm} \PYG{o}{=} \PYG{n}{exact}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{o}{.}\PYG{n}{comm}
+    \PYG{n}{error} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{form}\PYG{p}{(}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{inner}\PYG{p}{(}\PYG{n}{exact} \PYG{o}{\PYGZhy{}} \PYG{n}{approx}\PYG{p}{,} \PYG{n}{exact}\PYG{o}{\PYGZhy{}}\PYG{n}{approx}\PYG{p}{)} \PYG{o}{*} \PYG{n}{mesure}\PYG{p}{)}
+    \PYG{n}{error\PYGZus{}red} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{sqrt}\PYG{p}{(}\PYG{n}{comm}\PYG{o}{.}\PYG{n}{allreduce}\PYG{p}{(}\PYG{n}{fem}\PYG{o}{.}\PYG{n}{assemble\PYGZus{}scalar}\PYG{p}{(}\PYG{n}{error}\PYG{p}{),} \PYG{n}{MPI}\PYG{o}{.}\PYG{n}{SUM}\PYG{p}{))}
+    \PYG{k}{return} \PYG{n}{error\PYGZus{}red}
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{calculate\PYGZus{}H1\PYGZus{}error}\PYG{p}{(}\PYG{n}{exact}\PYG{p}{,} \PYG{n}{approx}\PYG{p}{,} \PYG{n}{mesure} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{dx}\PYG{p}{):}
+    \PYG{n}{comm} \PYG{o}{=} \PYG{n}{exact}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{o}{.}\PYG{n}{comm}
+    \PYG{n}{error} \PYG{o}{=} \PYG{n}{fem}\PYG{o}{.}\PYG{n}{form}\PYG{p}{(}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{inner}\PYG{p}{(}\PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{exact} \PYG{o}{\PYGZhy{}} \PYG{n}{approx}\PYG{p}{),} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{exact} \PYG{o}{\PYGZhy{}} \PYG{n}{approx}\PYG{p}{))} \PYG{o}{*} \PYG{n}{mesure}\PYG{p}{)}
+    \PYG{n}{error\PYGZus{}red} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{sqrt}\PYG{p}{(}\PYG{n}{comm}\PYG{o}{.}\PYG{n}{allreduce}\PYG{p}{(}\PYG{n}{fem}\PYG{o}{.}\PYG{n}{assemble\PYGZus{}scalar}\PYG{p}{(}\PYG{n}{error}\PYG{p}{),} \PYG{n}{MPI}\PYG{o}{.}\PYG{n}{SUM}\PYG{p}{))}
+    \PYG{k}{return} \PYG{n}{error\PYGZus{}red}
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{calculate\PYGZus{}shear\PYGZus{}stress}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{uh}\PYG{p}{,} \PYG{n}{neumann\PYGZus{}boundary} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}left\PYGZdq{}}\PYG{p}{):}
+    \PYG{n}{comm} \PYG{o}{=} \PYG{n}{uh}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{o}{.}\PYG{n}{comm}
+    \PYG{n}{\PYGZus{}}\PYG{p}{,} \PYG{n}{on\PYGZus{}neumann} \PYG{o}{=} \PYG{n}{boundary\PYGZus{}functions\PYGZus{}factory}\PYG{p}{(}\PYG{n}{neumann\PYGZus{}boundary}\PYG{p}{)}
+    \PYG{n}{neumann\PYGZus{}facets} \PYG{o}{=} \PYG{n}{mesh}\PYG{o}{.}\PYG{n}{locate\PYGZus{}entities\PYGZus{}boundary}\PYG{p}{(}\PYG{n}{uh}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{p}{,} \PYG{n}{uh}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{dim} \PYG{o}{\PYGZhy{}} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{on\PYGZus{}neumann}\PYG{p}{)}
+    \PYG{n}{mt} \PYG{o}{=} \PYG{n}{mesh}\PYG{o}{.}\PYG{n}{meshtags}\PYG{p}{(}\PYG{n}{uh}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{p}{,} \PYG{n}{uh}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{o}{.}\PYG{n}{topology}\PYG{o}{.}\PYG{n}{dim} \PYG{o}{\PYGZhy{}} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{neumann\PYGZus{}facets}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{)}
+    \PYG{n}{ds} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{Measure}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}ds\PYGZdq{}}\PYG{p}{,} \PYG{n}{domain}\PYG{o}{=}\PYG{n}{uh}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{p}{,} \PYG{n}{subdomain\PYGZus{}data}\PYG{o}{=}\PYG{n}{mt}\PYG{p}{)}
+    \PYG{n}{n} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{FacetNormal}\PYG{p}{(}\PYG{n}{uh}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{p}{)}
+    \PYG{n}{t} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{as\PYGZus{}vector}\PYG{p}{([}\PYG{n}{n}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{o}{\PYGZhy{}}\PYG{n}{n}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]])}  
+    \PYG{n}{shear\PYGZus{}u} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact}\PYG{p}{)}\PYG{o}{*}\PYG{n}{t}
+    \PYG{n}{shear\PYGZus{}uh} \PYG{o}{=} \PYG{n}{ufl}\PYG{o}{.}\PYG{n}{grad}\PYG{p}{(}\PYG{n}{uh}\PYG{p}{)}\PYG{o}{*}\PYG{n}{t}
+    \PYG{k}{return} \PYG{n}{calculate\PYGZus{}L2\PYGZus{}error}\PYG{p}{(}\PYG{n}{shear\PYGZus{}u}\PYG{p}{,} \PYG{n}{shear\PYGZus{}uh}\PYG{p}{,} \PYG{n}{comm}\PYG{o}{=}\PYG{n}{comm}\PYG{p}{,} \PYG{n}{mesure} \PYG{o}{=} \PYG{n}{ds}\PYG{p}{)}
+    
+    
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{experiment\PYGZus{}ex66}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{):}
+    \PYG{n}{polypairs} \PYG{o}{=} \PYG{p}{[(}\PYG{l+m+mi}{4}\PYG{p}{,} \PYG{l+m+mi}{3}\PYG{p}{),} \PYG{p}{(}\PYG{l+m+mi}{4}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{),} \PYG{p}{(}\PYG{l+m+mi}{3}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{),} \PYG{p}{(}\PYG{l+m+mi}{3}\PYG{p}{,} \PYG{l+m+mi}{1}\PYG{p}{)]}
+    \PYG{n}{Es} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{zeros}\PYG{p}{((}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{),} \PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{polypairs}\PYG{p}{)))}
+    \PYG{n}{Hs} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{zeros}\PYG{p}{((}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{),} \PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{polypairs}\PYG{p}{)))}
+    \PYG{k}{for} \PYG{n}{j}\PYG{p}{,} \PYG{n}{polypair} \PYG{o+ow}{in} \PYG{n+nb}{enumerate}\PYG{p}{(}\PYG{n}{polypairs}\PYG{p}{):}
+        \PYG{k}{for} \PYG{n}{i}\PYG{p}{,} \PYG{n}{N} \PYG{o+ow}{in} \PYG{n+nb}{enumerate}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{):}
+            \PYG{n}{uh}\PYG{p}{,} \PYG{n}{ph}\PYG{p}{,} \PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{p\PYGZus{}exact} \PYG{o}{=} \PYG{n}{solve\PYGZus{}stokes}\PYG{p}{(}\PYG{n}{N}\PYG{p}{,} \PYG{n}{polypair}\PYG{p}{)}
+            \PYG{n}{Es}\PYG{p}{[}\PYG{n}{i}\PYG{p}{,} \PYG{n}{j}\PYG{p}{]} \PYG{o}{=} \PYG{n}{calculate\PYGZus{}L2\PYGZus{}error}\PYG{p}{(}\PYG{n}{p\PYGZus{}exact}\PYG{p}{,} \PYG{n}{ph}\PYG{p}{)} \PYG{o}{+} \PYG{n}{calculate\PYGZus{}H1\PYGZus{}error}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{uh}\PYG{p}{)}
+            \PYG{n}{Hs}\PYG{p}{[}\PYG{n}{i}\PYG{p}{,} \PYG{n}{j}\PYG{p}{]} \PYG{o}{=} \PYG{l+m+mi}{1}\PYG{o}{/}\PYG{n}{N}
+    \PYG{n}{rates} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{log}\PYG{p}{(}\PYG{n}{Es}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{/}\PYG{n}{Es}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{:])}\PYG{o}{/}\PYG{n}{np}\PYG{o}{.}\PYG{n}{log}\PYG{p}{(}\PYG{n}{Hs}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{/}\PYG{n}{Hs}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{:])}
+    \PYG{n+nb}{print}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}Mean error convergence rates of solution: }\PYG{l+s+si}{\PYGZob{}}\PYG{n}{np}\PYG{o}{.}\PYG{n}{mean}\PYG{p}{(}\PYG{n}{rates}\PYG{p}{,}\PYG{+w}{ }\PYG{n}{axis}\PYG{o}{=}\PYG{l+m+mi}{1}\PYG{p}{)}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+    \PYG{k}{return} \PYG{n}{Es}\PYG{p}{,} \PYG{n}{Hs}\PYG{p}{,} \PYG{n}{rates}
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{experiment\PYGZus{}ex67}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{):}
+    \PYG{n}{neumann\PYGZus{}boundary} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}left\PYGZdq{}}
+    \PYG{n}{polypair} \PYG{o}{=} \PYG{p}{(}\PYG{l+m+mi}{3}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{)}
+    \PYG{n}{Es} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{zeros}\PYG{p}{((}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{),} \PYG{l+m+mi}{2}\PYG{p}{))}\PYG{c+c1}{\PYGZsh{}both the error in u and p and the shear stress error}
+    \PYG{n}{Hs} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{zeros}\PYG{p}{(}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{))}
+    \PYG{k}{for} \PYG{n}{i}\PYG{p}{,} \PYG{n}{N} \PYG{o+ow}{in} \PYG{n+nb}{enumerate}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{):}
+        \PYG{n}{uh}\PYG{p}{,} \PYG{n}{ph}\PYG{p}{,} \PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{p\PYGZus{}exact} \PYG{o}{=} \PYG{n}{solve\PYGZus{}stokes}\PYG{p}{(}\PYG{n}{N}\PYG{p}{,} \PYG{n}{polypair}\PYG{p}{,} \PYG{n}{enforce\PYGZus{}neumann}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{,} \PYG{n}{neumann\PYGZus{}boundary}\PYG{o}{=}\PYG{n}{neumann\PYGZus{}boundary}\PYG{p}{)}
+        \PYG{n}{Es}\PYG{p}{[}\PYG{n}{i}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{=} \PYG{n}{calculate\PYGZus{}L2\PYGZus{}error}\PYG{p}{(}\PYG{n}{p\PYGZus{}exact}\PYG{p}{,} \PYG{n}{ph}\PYG{p}{)} \PYG{o}{+} \PYG{n}{calculate\PYGZus{}H1\PYGZus{}error}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{uh}\PYG{p}{)}
+        \PYG{n}{Es}\PYG{p}{[}\PYG{n}{i}\PYG{p}{,} \PYG{l+m+mi}{1}\PYG{p}{]} \PYG{o}{=} \PYG{n}{calculate\PYGZus{}shear\PYGZus{}stress}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{uh}\PYG{p}{,} \PYG{n}{neumann\PYGZus{}boundary} \PYG{o}{=} \PYG{n}{neumann\PYGZus{}boundary}\PYG{p}{)}
+        \PYG{n}{Hs}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{l+m+mi}{1}\PYG{o}{/}\PYG{n}{N}
+    \PYG{n}{rates\PYGZus{}sol} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{log}\PYG{p}{(}\PYG{n}{Es}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{/}\PYG{n}{Es}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{:,} \PYG{l+m+mi}{0}\PYG{p}{])}\PYG{o}{/}\PYG{n}{np}\PYG{o}{.}\PYG{n}{log}\PYG{p}{(}\PYG{n}{Hs}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{/}\PYG{n}{Hs}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{:])}
+    \PYG{n}{rates\PYGZus{}shear} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{log}\PYG{p}{(}\PYG{n}{Es}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{/}\PYG{n}{Es}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{:,} \PYG{l+m+mi}{1}\PYG{p}{])}\PYG{o}{/}\PYG{n}{np}\PYG{o}{.}\PYG{n}{log}\PYG{p}{(}\PYG{n}{Hs}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{/}\PYG{n}{Hs}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{:])}
+    \PYG{k}{return} \PYG{n}{Es}\PYG{p}{,} \PYG{n}{Hs}\PYG{p}{,} \PYG{n}{rates\PYGZus{}sol}\PYG{p}{,} \PYG{n}{rates\PYGZus{}shear}
+    
+
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{test}\PYG{p}{(}\PYG{n}{plot}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{enforce\PYGZus{}neumann}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{neumann\PYGZus{}boundary}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}right\PYGZsq{}}\PYG{p}{,} \PYG{n}{savefig}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{savename}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}\PYGZdq{}}\PYG{p}{):}
+    \PYG{n}{uh}\PYG{p}{,} \PYG{n}{ph}\PYG{p}{,} \PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{p\PYGZus{}exact} \PYG{o}{=} \PYG{n}{solve\PYGZus{}stokes}\PYG{p}{(}\PYG{l+m+mi}{10}\PYG{p}{,} \PYG{p}{(}\PYG{l+m+mi}{3}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{),} \PYG{n}{plot}\PYG{o}{=}\PYG{n}{plot}\PYG{p}{,} \PYG{n}{enforce\PYGZus{}neumann}\PYG{o}{=}\PYG{n}{enforce\PYGZus{}neumann}\PYG{p}{,} \PYG{n}{neumann\PYGZus{}boundary}\PYG{o}{=}\PYG{n}{neumann\PYGZus{}boundary}\PYG{p}{,} \PYG{n}{savefig}\PYG{o}{=}\PYG{n}{savefig}\PYG{p}{,} \PYG{n}{savename}\PYG{o}{=}\PYG{n}{savename}\PYG{p}{)}
+    \PYG{n}{error} \PYG{o}{=} \PYG{n}{calculate\PYGZus{}H1\PYGZus{}error}\PYG{p}{(}\PYG{n}{uh}\PYG{p}{,} \PYG{n}{u\PYGZus{}exact}\PYG{p}{)} \PYG{o}{+} \PYG{n}{calculate\PYGZus{}L2\PYGZus{}error}\PYG{p}{(}\PYG{n}{ph}\PYG{p}{,} \PYG{n}{p\PYGZus{}exact}\PYG{p}{)}
+    \PYG{n}{comm} \PYG{o}{=} \PYG{n}{uh}\PYG{o}{.}\PYG{n}{function\PYGZus{}space}\PYG{o}{.}\PYG{n}{mesh}\PYG{o}{.}\PYG{n}{comm}
+    \PYG{n}{shear\PYGZus{}error} \PYG{o}{=} \PYG{n}{calculate\PYGZus{}shear\PYGZus{}stress}\PYG{p}{(}\PYG{n}{u\PYGZus{}exact}\PYG{p}{,} \PYG{n}{uh}\PYG{p}{,} \PYG{n}{neumann\PYGZus{}boundary} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}right\PYGZdq{}}\PYG{p}{)}
+    \PYG{k}{if} \PYG{n}{comm}\PYG{o}{.}\PYG{n}{rank} \PYG{o}{==} \PYG{l+m+mi}{0}\PYG{p}{:}
+        \PYG{n+nb}{print}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}Error: }\PYG{l+s+si}{\PYGZob{}}\PYG{n}{error}\PYG{l+s+si}{:}\PYG{l+s+s2}{.2e}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+        \PYG{n+nb}{print}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}Shear stress error: }\PYG{l+s+si}{\PYGZob{}}\PYG{n}{shear\PYGZus{}error}\PYG{l+s+si}{:}\PYG{l+s+s2}{.2e}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+    
+
+\PYG{k}{if} \PYG{n+nv+vm}{\PYGZus{}\PYGZus{}name\PYGZus{}\PYGZus{}} \PYG{o}{==} \PYG{l+s+s2}{\PYGZdq{}\PYGZus{}\PYGZus{}main\PYGZus{}\PYGZus{}\PYGZdq{}}\PYG{p}{:}
+    \PYG{n}{Ns} \PYG{o}{=} \PYG{p}{[}\PYG{l+m+mi}{2}\PYG{p}{,} \PYG{l+m+mi}{4}\PYG{p}{,} \PYG{l+m+mi}{8}\PYG{p}{,} \PYG{l+m+mi}{16}\PYG{p}{,} \PYG{l+m+mi}{32}\PYG{p}{,} \PYG{l+m+mi}{64}\PYG{p}{]}
+    \PYG{c+c1}{\PYGZsh{}test(plot=True, savefig=False, savename=\PYGZsq{}66\PYGZsq{}, neumann\PYGZus{}boundary=\PYGZdq{}right\PYGZdq{}) \PYGZsh{}plot}
+    \PYG{c+c1}{\PYGZsh{}test(plot=True, enforce\PYGZus{}neumann=True, neumann\PYGZus{}boundary=\PYGZsq{}right\PYGZsq{}, savefig=False, savename=\PYGZsq{}67\PYGZsq{}) \PYGZsh{}plot}
+    \PYG{c+c1}{\PYGZsh{}test(plot=True, enforce\PYGZus{}neumann=True, neumann\PYGZus{}boundary=\PYGZsq{}bottom\PYGZsq{}, savefig=False, savename=\PYGZsq{}67\PYGZsq{}) \PYGZsh{}plot}
+    
+    \PYG{c+c1}{\PYGZsh{}quit()}
+    \PYG{n}{Es66}\PYG{p}{,} \PYG{n}{Hs66}\PYG{p}{,} \PYG{n}{rates66} \PYG{o}{=} \PYG{n}{experiment\PYGZus{}ex66}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{)}
+    \PYG{n}{Es67}\PYG{p}{,} \PYG{n}{Hs67}\PYG{p}{,} \PYG{n}{rates\PYGZus{}sol67}\PYG{p}{,} \PYG{n}{rates\PYGZus{}shear67} \PYG{o}{=} \PYG{n}{experiment\PYGZus{}ex67}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{)}
+    
+    \PYG{k}{if} \PYG{n}{MPI}\PYG{o}{.}\PYG{n}{COMM\PYGZus{}WORLD}\PYG{o}{.}\PYG{n}{rank} \PYG{o}{==} \PYG{l+m+mi}{0}\PYG{p}{:}
+        \PYG{n+nb}{print}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}Mean error convergence rates of solutions ex66: }\PYG{l+s+si}{\PYGZob{}}\PYG{n}{np}\PYG{o}{.}\PYG{n}{mean}\PYG{p}{(}\PYG{n}{rates66}\PYG{p}{,}\PYG{+w}{ }\PYG{n}{axis}\PYG{o}{=}\PYG{l+m+mi}{1}\PYG{p}{)}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+        \PYG{n+nb}{print}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}Mean error convergence rates of solution ex67: }\PYG{l+s+si}{\PYGZob{}}\PYG{n}{np}\PYG{o}{.}\PYG{n}{mean}\PYG{p}{(}\PYG{n}{rates\PYGZus{}sol67}\PYG{p}{)}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+        \PYG{n+nb}{print}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}Mean error convergence rates of shear stress ex67: }\PYG{l+s+si}{\PYGZob{}}\PYG{n}{np}\PYG{o}{.}\PYG{n}{mean}\PYG{p}{(}\PYG{n}{rates\PYGZus{}shear67}\PYG{p}{)}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+    
+    
+    
+        \PYG{n}{fig}\PYG{p}{,} \PYG{n}{axes} \PYG{o}{=} \PYG{n}{plt}\PYG{o}{.}\PYG{n}{subplots}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{,} \PYG{n}{figsize}\PYG{o}{=}\PYG{p}{(}\PYG{l+m+mi}{12}\PYG{p}{,} \PYG{l+m+mi}{6}\PYG{p}{))}
+        \PYG{n}{fig}\PYG{o}{.}\PYG{n}{suptitle}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Log\PYGZhy{}Log Error plots\PYGZdq{}}\PYG{p}{,} \PYG{n}{fontsize}\PYG{o}{=}\PYG{l+m+mi}{16}\PYG{p}{)}
+        
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}title}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Neumann BC on Bottom Wall P3\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs67}\PYG{p}{,} \PYG{n}{Es67}\PYG{p}{[:,} \PYG{l+m+mi}{0}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error solution\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs67}\PYG{p}{,} \PYG{n}{Es67}\PYG{p}{[:,} \PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error shear stress\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}xlabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}h\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}ylabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Error\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{legend}\PYG{p}{()}
+        
+        \PYG{n}{Hs\PYGZus{}same} \PYG{o}{=} \PYG{n}{Hs66}\PYG{p}{[:,} \PYG{l+m+mi}{0}\PYG{p}{]}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}title}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Neumann BC (do nothing) on Right Wall\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs\PYGZus{}same}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{[:,} \PYG{l+m+mi}{0}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error P4\PYGZhy{}P3\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs\PYGZus{}same}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{[:,} \PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error P4\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs\PYGZus{}same}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{[:,} \PYG{l+m+mi}{2}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error P3\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{loglog}\PYG{p}{(}\PYG{n}{Hs\PYGZus{}same}\PYG{p}{,} \PYG{n}{Es66}\PYG{p}{[:,} \PYG{l+m+mi}{3}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Error P3\PYGZhy{}P1\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}xlabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}h\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}ylabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Error\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{legend}\PYG{p}{()}
+        
+        \PYG{n}{plt}\PYG{o}{.}\PYG{n}{tight\PYGZus{}layout}\PYG{p}{()}
+        \PYG{n}{plt}\PYG{o}{.}\PYG{n}{savefig}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}figs/loglog.png\PYGZdq{}}\PYG{p}{,} \PYG{n}{dpi}\PYG{o}{=}\PYG{l+m+mi}{300}\PYG{p}{)}
+        \PYG{n}{plt}\PYG{o}{.}\PYG{n}{show}\PYG{p}{()}
+        \PYG{n}{plt}\PYG{o}{.}\PYG{n}{close}\PYG{p}{()}
+        
+        \PYG{n}{fig}\PYG{p}{,} \PYG{n}{axes} \PYG{o}{=} \PYG{n}{plt}\PYG{o}{.}\PYG{n}{subplots}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{,} \PYG{n}{figsize}\PYG{o}{=}\PYG{p}{(}\PYG{l+m+mi}{12}\PYG{p}{,} \PYG{l+m+mi}{6}\PYG{p}{))}
+        \PYG{n}{fig}\PYG{o}{.}\PYG{n}{suptitle}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Convergence Rates\PYGZdq{}}\PYG{p}{,} \PYG{n}{fontsize}\PYG{o}{=}\PYG{l+m+mi}{16}\PYG{p}{)}
+        
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates66}\PYG{p}{[:,} \PYG{l+m+mi}{0}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}P4\PYGZhy{}P3\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates66}\PYG{p}{[:,} \PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}P4\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates66}\PYG{p}{[:,} \PYG{l+m+mi}{2}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}P3\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates66}\PYG{p}{[:,} \PYG{l+m+mi}{3}\PYG{p}{],} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}P3\PYGZhy{}P1\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}ylabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Convergence rate\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}xlabel}\PYG{p}{(}\PYG{l+s+sa}{r}\PYG{l+s+s2}{\PYGZdq{}\PYGZdl{}N\PYGZdl{}\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{legend}\PYG{p}{()}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}title}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Do Nothing BC on Right Wall\PYGZdq{}}\PYG{p}{)}
+
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates\PYGZus{}sol67}\PYG{p}{,} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Bottom BC\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{Ns}\PYG{p}{[:}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{rates\PYGZus{}shear67}\PYG{p}{,} \PYG{n}{label}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}Shear Stress Left Wall\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}ylabel}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Convergence rate\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}xlabel}\PYG{p}{(}\PYG{l+s+sa}{r}\PYG{l+s+s2}{\PYGZdq{}\PYGZdl{}N\PYGZdl{}\PYGZdq{}}\PYG{p}{)}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{legend}\PYG{p}{()}
+        \PYG{n}{axes}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}\PYG{o}{.}\PYG{n}{set\PYGZus{}title}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}Neumann BC on Bottom Wall P3\PYGZhy{}P2\PYGZdq{}}\PYG{p}{)}
+
+        \PYG{n}{plt}\PYG{o}{.}\PYG{n}{tight\PYGZus{}layout}\PYG{p}{(}\PYG{n}{rect}\PYG{o}{=}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{,} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mf}{0.93}\PYG{p}{])}
+        \PYG{n}{plt}\PYG{o}{.}\PYG{n}{savefig}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}figs/convergence\PYGZus{}rates.png\PYGZdq{}}\PYG{p}{,} \PYG{n}{dpi}\PYG{o}{=}\PYG{l+m+mi}{300}\PYG{p}{)}
+        \PYG{n}{plt}\PYG{o}{.}\PYG{n}{show}\PYG{p}{()}
+        \PYG{n}{plt}\PYG{o}{.}\PYG{n}{close}\PYG{p}{()}
+
+        
+        
+        
+        
+        
+        
+\end{Verbatim}
