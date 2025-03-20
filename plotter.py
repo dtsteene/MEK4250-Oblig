@@ -47,69 +47,68 @@ def visualize_mixed(mixed_function: dolfinx.fem.Function, scale=0.1, savefig=Fal
         plotter_p.screenshot(r"figs/pressure_" + savename + ".png", transparent_background=True)
         
     
-def loglog_plot(Hs67, Es67, Hs66, Es66):
-    """
-    Plot log-log error plots for the two different boundary conditions.
-    """
-    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-    fig.suptitle("Log-Log Error plots", fontsize=16)
 
-    axes[0].set_title("Neumann BC on Bottom Wall P3-P2")
-    axes[0].loglog(Hs67, Es67[:, 0], label="Error solution")
-    axes[0].loglog(Hs67, Es67[:, 1], label="Error shear stress")
-    axes[0].set_xlabel("h")
-    axes[0].set_ylabel("Error")
+
+
+def plot_convergence_rates(Ns, rates_dn, rates_sol_neu, polypairs):
+    """
+    Plot convergence rates (solution error) for the two different boundary conditions
+    in a single figure with two subplots.
+    
+    Left subplot: Do Nothing BC.
+    Right subplot: Neumann BC (bottom) solution error.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig.suptitle(r"Error Convergence Rates $||u - u_h||_1 + || p - p_h||_0$ ", fontsize=16)
+    x_ticks = [f"$N_{{{i+1}}}/N_{{{i}}}$" for i in range(len(Ns) - 1)]
+    x = range(len(x_ticks))
+    
+    # Plot for Do Nothing BC.
+    for j, poly in enumerate(polypairs):
+        axes[0].plot(x, rates_dn[:, j], marker='o', label=f"P{poly[0]}-P{poly[1]}")
+    axes[0].set_title("Do Nothing Neumann BC")
+    axes[0].set_xlabel("Mesh Refinement")
+    axes[0].set_ylabel("Convergence Rate")
+    axes[0].set_xticks(x)
+    axes[0].set_xticklabels(x_ticks)
     axes[0].legend()
-
-    Hs_same = Hs66[:, 0]
-    axes[1].set_title("Neumann BC (do nothing) on Right Wall")
-    axes[1].loglog(Hs_same, Es66[:, 0], label="Error P4-P3")
-    axes[1].loglog(Hs_same, Es66[:, 1], label="Error P4-P2")
-    axes[1].loglog(Hs_same, Es66[:, 2], label="Error P3-P2")
-    axes[1].loglog(Hs_same, Es66[:, 3], label="Error P3-P1")
-    axes[1].set_xlabel("h")
-    axes[1].set_ylabel("Error")
+    
+    # Plot for Neumann BC (Bottom) - solution error.
+    for j, poly in enumerate(polypairs):
+        axes[1].plot(x, rates_sol_neu[:, j], marker='o', label=f"P{poly[0]}-P{poly[1]}")
+    axes[1].set_title("Neumann BC (Bottom)")
+    axes[1].set_xlabel("Mesh Refinement")
+    axes[1].set_ylabel("Convergence Rate")
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels(x_ticks)
     axes[1].legend()
-
+    
     plt.tight_layout()
-    plt.savefig("figs/loglog.png", dpi=300)
+    plt.savefig("figs/convergence_rates_subplot.png", dpi=300)
     plt.show()
     plt.close()
-    
 
-def convergence_rate_plot(Ns, rates66, rates_sol67, rates_shear67):
+
+def plot_shear_stress_rates(Ns, rates_shear_neu, polypairs):
     """
-    Plot convergence rates for the two different boundary conditions.
+    Plot shear stress convergence rates for the Neumann BC (Bottom)
+    for all polynomial pairs.
     """
-    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-    fig.suptitle("Convergence Rates", fontsize=16)
+    fig, ax = plt.subplots(figsize=(7, 6))
+    x_ticks = [f"$N_{{{i+1}}}/N_{{{i}}}$" for i in range(len(Ns) - 1)]
+    x = range(len(x_ticks))
     
-    x = np.array(Ns[:-1])
+    for j, poly in enumerate(polypairs):
+        ax.plot(x, rates_shear_neu[:, j], marker='o', label=f"P{poly[0]}-P{poly[1]}")
+    ax.set_title("Neumann BC (Bottom) - Shear Stress Convergence Rates")
+    ax.set_xlabel("Mesh Refinement")
+    ax.set_ylabel("Convergence Rate")
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_ticks)
+    ax.legend()
     
-    axes[0].plot(Ns[:-1], rates66[:, 0], label="P4-P3", color="blue")
-    axes[0].axhline(y=4, color="blue", linestyle="--")
-    
-    axes[0].plot(Ns[:-1], rates66[:, 1], label="P4-P2", color="orange")
-    axes[0].axhline(y=3, linestyle="--", color="orange")
-    
-    axes[0].plot(Ns[:-1], rates66[:, 2], label="P3-P2")
-    axes[0].plot(Ns[:-1], rates66[:, 3], label="P3-P1", color="red")
-    axes[0].axhline(y=2, linestyle="--", color="red")
-    axes[0].set_ylabel("Convergence rate")
-    axes[0].set_xlabel(r"$N$")
-    axes[0].legend()
-    axes[0].set_title("Do Nothing BC on Right Wall")
-
-    axes[1].plot(Ns[:-1], rates_sol67, label="Bottom BC")
-    axes[1].plot(Ns[:-1], rates_shear67, label="Shear Stress Left Wall")
-    axes[1].axhline(y=3, linestyle="--")
-    axes[1].set_ylabel("Convergence rate")
-    axes[1].set_xlabel(r"$N$")
-    axes[1].legend()
-    axes[1].set_title("Neumann BC on Bottom Wall P3-P2")
-
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
-    plt.savefig("figs/convergence_rates.png", dpi=300)
+    plt.tight_layout()
+    plt.savefig("figs/shear_stress_convergence_rates.png", dpi=300)
     plt.show()
     plt.close()
 

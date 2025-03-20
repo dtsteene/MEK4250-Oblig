@@ -109,13 +109,13 @@
 
     \medskip\noindent\textbf{$L_1$:}
     The eigenvalue problem is $u_x = \lambda u$.
-    the soluion is $u(x) = C e^{\lambda x}$.
+    The soluion is $u(x) = C e^{\lambda x}$.
     With the boundary conditions $u(0) = u(1) = 0$, we get $C = 0$ and $\lambda = 0$.
     Thus, the eigenvalues of $L_1$ are $\lambda = 0$.
 
 
     \medskip\noindent\textbf{$L_2$:}
-    The eigenvalue problem is $L_2 u = \lambda u$. We have looked at this form in lectures.
+    The eigenvalue problem is $L_2 u = \lambda u$. We have looked at this in lectures.
     It's easy to see that sine satesfies the eigenfunction equation.
 
     \begin{align*}
@@ -514,7 +514,7 @@
 \end{exercise}
 
 \begin{solution}{6.7}
-    The parts not explained would be the error calculation.
+    The part not explained would be the error calculation.
     From the book we have the following error estimate.
     \[
         \|u - u_h\|_1 + \|p - p_h\|_0 \le C\,h^k \|u\|_{k+1} + D\,h^{\ell+1} \|p\|_{\ell+1}
@@ -532,26 +532,20 @@
                                       & \le h^{\ell+1}  C^*                                                                 \\
     \end{align*}
 
-
     To get the convergence rate we calculate the left hand side for different mesh sizes h.
     Each error bounds are then on the form \(E_i = C^* h_i^r\), where \(r\) is the convergence rate.
     We solve for \(r\) by \(E_{i-1} = C^* h_{i-1}^r\) giving us
     \[
         r = \frac{\log(E_{i-1}) - \log(E_i)}{\log(h_{i-1}) - \log(h_i)}
     \]
-
-
-    I've put the plotting code at the bottom in a seperate .py file as a i find it less interesting.
-    \inputminted[linenos, breaklines, frame=lines]{python}{ex67.py}
+    Everything seemed to converge to the expected \(\ell + 1\) convergence rate.
 \end{solution}
-
-%add figures from figs folder. 
 
 \begin{figure}[h]
     \centering
     \centering
-    \includegraphics[width=1.1\linewidth]{figs/convergence_rates.png}
-    \caption{Convergence for different element pairs. Dotted lines show expected convergence rates.}
+    \includegraphics[width=1\linewidth]{figs/convergence_rates_subplot.png}
+    \caption{Convergence for different element pairs. \( N = [4, 8, 16, 32, 64, 128] \). Left is exercise 6.6 and right is Neumann on bottom Exercise 6.7.}
     \label{fig:ex66}
 \end{figure}
 
@@ -579,6 +573,23 @@
     \caption{Pressure and Velocity Figures for Exercises 6.6 and 6.7.}
     \label{fig:combined}
 \end{figure}
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{figs/shear_stress_convergence_rates.png}
+    \caption{Wall shear stress for different element pairs.}
+    \label{fig:shear}
+\end{figure}
+
+\FloatBarrier
+
+Below is the code for exercise 6.6 and 6.7. I've put the
+plotting code at the very end.
+\inputminted[linenos, breaklines, frame=lines]{python}{ex67.py}
+
+
+%add figures from figs folder. 
 
 
 \FloatBarrier

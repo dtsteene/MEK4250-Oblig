@@ -1,11 +1,11 @@
 from collections.abc import Callable
-from dolfinx import fem, mesh, la
+from dolfinx import fem, mesh
 import basix.ufl
 import ufl
 from mpi4py import MPI
 import numpy as np
-import scipy.sparse
-from plotter import visualize_mixed, loglog_plot, convergence_rate_plot
+from plotter import plot_shear_stress_rates, plot_convergence_rates
+from dolfinx.fem.petsc import LinearProblem
 
 
 
@@ -143,35 +143,32 @@ def solve_stokes(N, polypair, neumann_boundary ="right", enforce_neumann=False, 
     u_exact = fem.Function(V)
     u_exact.interpolate(u_exact_numpy)
 
-    domain.topology.create_connectivity(domain.topology.dim - 1, domain.topology.dim)
     dir_facets = mesh.locate_entities_boundary(domain, domain.topology.dim - 1, on_dirichlet)
     combined_dofs = fem.locate_dofs_topological((W0, V), domain.topology.dim - 1, dir_facets)
     bc = fem.dirichletbc(u_exact, combined_dofs, W0)
     bcs = [bc]
   
-  
-    #------Form, create, assemble and solve linear system----
-    a_compiled = fem.form(a) #create c code for the form
-    L_compiled = fem.form(L)
-    A = fem.create_matrix(a_compiled) #create matrix code for the form
-    b = fem.create_vector(L_compiled)
-    A_scipy = A.to_scipy()
-    fem.assemble_matrix(A, a_compiled, bcs=bcs) #actually fill the matrix
-    fem.assemble_vector(b.array, L_compiled)
-    fem.apply_lifting(b.array, [a_compiled], [bcs]) 
-    b.scatter_reverse(la.InsertMode.add) #tell ghosted vector to add values to local dofs
-    bc.set(b.array) #set the boundary condition values to the vector
-
-    A_inv = scipy.sparse.linalg.splu(A_scipy) #lu factorization
-    
-    wh = fem.Function(W)# solve Ax=b for x
-    wh.x.array[:] = A_inv.solve(b.array) #put the solution in wh
-
+    #-----solve the problem----
+    problem = LinearProblem(
+        a,
+        L,
+        bcs=bcs,
+        petsc_options={
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "pc_factor_mat_solver_type": "mumps",
+        },
+    )
+    wh = problem.solve()
     
     return wh
 
+    
 
-def raised_difference(exact: Callable[[np.ndarray], np.ndarray], approx: fem.Function, degree_raise: int = 3) -> fem.Function:  
+
+def raised_difference(exact: Callable[[np.ndarray], np.ndarray], 
+                      approx: fem.Function, 
+                      degree_raise: int = 3) -> fem.Function:  
     """ Get exact solution for the same quadrature points as approximation, interpolate both to a higher 
             space and return the difference between the exact and approximate solutions.
 
@@ -210,7 +207,7 @@ def raised_difference(exact: Callable[[np.ndarray], np.ndarray], approx: fem.Fun
     return difference
 
 
-def L2_error(exact, approx, comm=None, measure=ufl.dx):
+def L2_error(exact: Callable[[np.ndarray], np.ndarray], approx: fem.Function, comm=None, measure=ufl.dx):
     """
     Calculate the L2 error between the exact and approximate solutions.
     
@@ -218,14 +215,12 @@ def L2_error(exact, approx, comm=None, measure=ufl.dx):
     if comm is None:
         comm = approx.function_space.mesh.comm
     diff = raised_difference(exact, approx)
-    # Define the error form
     error_form = fem.form(ufl.inner(diff, diff) * measure)
-    # Assemble the error and perform a global reduction
     error_value = np.sqrt(comm.allreduce(fem.assemble_scalar(error_form), op=MPI.SUM))
     return error_value
 
 
-def H1_seminorm_error(exact, approx, measure=ufl.dx):
+def H1_seminorm_error(exact: Callable[[np.ndarray], np.ndarray], approx: fem.Function, measure=ufl.dx):
     """
     Calculate the H1 error (gradient error) between the exact and approximate solutions.
     returns:
@@ -239,138 +234,122 @@ def H1_seminorm_error(exact, approx, measure=ufl.dx):
     return error_value
 
 
-def calculate_shear_stress(u_exact, uh, neumann_boundary="left"):
+def calculate_shear_stress(u_exact: Callable[[np.ndarray], np.ndarray], uh: fem.Function, neumann_boundary="left"):
     """
     Calculate the L2 error in the shear stress on a specified Neumann boundary.
     
     returns:
     shear_error : float
-        ||grad(u_exact) * t - grad(uh) * t||_L2 #could also have done H1 seminorm of u*t,uh*t
+        ||grad(u_exact - uh) * t||_L2 
 
     """
-    comm = uh.function_space.mesh.comm
+   
     _, on_neumann = boundary_functions_factory(neumann_boundary)
-    # Locate facets on the Neumann boundary
+    
+    domain = uh.function_space.mesh
     neumann_facets = mesh.locate_entities_boundary(
-        uh.function_space.mesh,
-        uh.function_space.mesh.topology.dim - 1,
+        domain,
+        domain.topology.dim - 1,
         on_neumann
     )
-    # Create meshtags for the Neumann boundary; here, all facets are tagged with 0
+    
     mt = mesh.meshtags(
-        uh.function_space.mesh,
-        uh.function_space.mesh.topology.dim - 1,
+        domain,
+        domain.topology.dim - 1,
         neumann_facets,
-        np.full(len(neumann_facets), 0, dtype=np.int32)
+        np.full_like(neumann_facets, 0, dtype=np.int32)
     )
+    
     ds = ufl.Measure("ds", domain=uh.function_space.mesh, subdomain_data=mt)
     # Define normal and tangent vectors
-    n = ufl.FacetNormal(uh.function_space.mesh)
+    diff = raised_difference(u_exact, uh)
+    
+    n = ufl.FacetNormal(diff.function_space.mesh)
     t = ufl.as_vector([n[1], -n[0]])
     
-    diff = raised_difference(u_exact, uh)
+    
     error_form = fem.form(ufl.inner(ufl.grad(diff)*t, ufl.grad(diff)*t) * ds(0))
+    comm = uh.function_space.mesh.comm
     error_value = np.sqrt(comm.allreduce(fem.assemble_scalar(error_form), op=MPI.SUM))
     return error_value
 
 
-def experiment_ex66(Ns):
-    """
-    Run experiment ex66 to evaluate the convergence of the solution for various polynomial pairs.
-    
-    """
-    polypairs = [(4, 3), (4, 2), (3, 2), (3, 1)]
-    num_N = len(Ns)
-    num_polypairs = len(polypairs)
-    Es = np.zeros((num_N, num_polypairs))
-    Hs = np.zeros((num_N, num_polypairs))
-    
-    for j, polypair in enumerate(polypairs):
-        for i, N in enumerate(Ns):
-            wh = solve_stokes(N, polypair)
-            # Compute errors (order: exact, approx)
-            uh = wh.sub(0).collapse()
-            ph = wh.sub(1).collapse()
-            
-            error_pressure = L2_error(p_exact_numpy, ph)
-            error_velocity = H1_seminorm_error(u_exact_numpy, uh)
-            Es[i, j] = error_pressure + error_velocity
-            Hs[i, j] = 1.0 / N
-    
-    # Compute convergence rates between successive mesh refinements
-    rates = np.log(Es[:-1] / Es[1:]) / np.log(Hs[:-1] / Hs[1:])
-    mean_rates = np.mean(rates, axis=0)
-    print(f"Mean error convergence rates of solution: {mean_rates}")
-    return Es, Hs, rates
-
-
-def experiment_ex67(Ns):
-    """
-    Run experiment ex67 to evaluate the convergence of both the solution and the shear stress on a Neumann boundary.
-
-    """
-    neumann_boundary = "left"
-    polypair = (3, 2)
-    num_N = len(Ns)
-    Es = np.zeros((num_N, 2))  # Column 0: solution error; Column 1: shear stress error
-    Hs = np.zeros(num_N)
-    
-    for i, N in enumerate(Ns):
-        wh = solve_stokes(
-            N, polypair, enforce_neumann=True, neumann_boundary=neumann_boundary
-        )
-        uh = wh.sub(0).collapse()
-        ph = wh.sub(1).collapse()
         
-        error_solution = L2_error(p_exact_numpy, ph) + H1_seminorm_error(u_exact_numpy, uh) + L2_error(u_exact_numpy, uh)
-        error_shear = calculate_shear_stress(u_exact_numpy, uh, neumann_boundary=neumann_boundary)
-        Es[i, 0] = error_solution
-        Es[i, 1] = error_shear
-        Hs[i] = 1.0 / N
-    
-    rates_sol = np.log(Es[:-1, 0] / Es[1:, 0]) / np.log(Hs[:-1] / Hs[1:])
-    rates_shear = np.log(Es[:-1, 1] / Es[1:, 1]) / np.log(Hs[:-1] / Hs[1:])
-    return Es, Hs, rates_sol, rates_shear
-
-
-def test(plot=False, enforce_neumann=True, neumann_boundary='right', savefig=False, savename=""):
+def experiment_poly_pairs(Ns: list[int], polypairs: list[tuple[int, int]], 
+                            enforce_neumann: bool = False, neumann_boundary: str = "right"):
     """
-    Test the Stokes solver and error calculations, and optionally plot or save the results.
-  
-    """
-    wh = solve_stokes(
-        10, (3, 2), plot=plot, enforce_neumann=enforce_neumann,
-        neumann_boundary=neumann_boundary, savefig=savefig, savename=savename
-    )
-    if plot:
-        visualize_mixed(wh, scale=0.1, savefig=savefig, savename=savename)
-
-    uh = wh.sub(0).collapse()
-    ph = wh.sub(1).collapse()
+    Run experiments for a set of polynomial pairs.
     
-    print(uh.function_space.mesh)
-    # Compute errors with the convention: exact, approx
-    error = H1_seminorm_error(u_exact_numpy, uh) + L2_error(p_exact_numpy, ph)
-    comm = uh.function_space.mesh.comm
-    shear_error = calculate_shear_stress(u_exact_numpy, uh, neumann_boundary='left')
-    if comm.rank == 0:
-        print(f"Error: {error:.2e}")
-        print(f"Shear stress error: {shear_error:.2e}")
+    If enforce_neumann is False, it runs the standard (do nothing) experiment,
+    computing a single error (pressure + velocity error).
+    If enforce_neumann is True, it runs the experiment with a Neumann boundary condition
+    (using the specified neumann_boundary) and computes two errors:
+      - error_solution: combined solution error (including an extra L2 velocity error)
+      - error_shear: error in the computed shear stress.
+    
+    Returns:
+      For do nothing: (Es, Hs, rates)
+      For Neumann: (Es_solution, Es_shear, Hs, rates_solution, rates_shear)
+    """
+    num_N = len(Ns)
+    num_poly = len(polypairs)
+    Es = np.zeros((num_N, num_poly))
+    Hs = np.zeros((num_N, num_poly))
+    
+    if enforce_neumann:
+        Es_shear = np.zeros((num_N, num_poly))
+    
+    for j, poly in enumerate(polypairs):
+        for i, N in enumerate(Ns):
+            if enforce_neumann:
+                wh = solve_stokes(N, poly, enforce_neumann=True, neumann_boundary=neumann_boundary)
+                uh = wh.sub(0).collapse()
+                ph = wh.sub(1).collapse()
+                error_solution = (L2_error(p_exact_numpy, ph) +
+                                  H1_seminorm_error(u_exact_numpy, uh) +
+                                  L2_error(u_exact_numpy, uh))
+                error_shear = calculate_shear_stress(u_exact_numpy, uh, neumann_boundary=neumann_boundary)
+                Es[i, j] = error_solution
+                Es_shear[i, j] = error_shear
+            else:
+                wh = solve_stokes(N, poly)
+                uh = wh.sub(0).collapse()
+                ph = wh.sub(1).collapse()
+                error = L2_error(p_exact_numpy, ph) + H1_seminorm_error(u_exact_numpy, uh) + L2_error(u_exact_numpy, uh)
+                Es[i, j] = error
+            Hs[i, j] = 1.0 / N
+
+
+    if enforce_neumann:
+        rates_solution = np.log(Es[:-1, :] / Es[1:, :]) / np.log(Hs[:-1, :] / Hs[1:, :])
+        rates_shear = np.log(Es_shear[:-1, :] / Es_shear[1:, :]) / np.log(Hs[:-1, :] / Hs[1:, :])
+        return Es, Es_shear, Hs, rates_solution, rates_shear
+    else:
+        rates = np.log(Es[:-1, :] / Es[1:, :]) / np.log(Hs[:-1, :] / Hs[1:, :])
+        return Es, Hs, rates
 
 if __name__ == "__main__":
-    Ns = [2, 4, 8, 16, 32, 64]
-    #test(plot=True, savefig=False, savename='66', neumann_boundary="right") #plot
-    #test(plot=True, enforce_neumann=True, neumann_boundary='right', savefig=False, savename='67') #plot
-    #test(plot=True, enforce_neumann=True, neumann_boundary='bottom', savefig=False, savename='67') #plot
+    Ns = [4, 8, 16, 32, 64, 128]
+    polypairs = [(4, 3), (4, 2), (3, 2), (3, 1)]
     
-    #quit()
-    Es66, Hs66, rates66 = experiment_ex66(Ns)
-    Es67, Hs67, rates_sol67, rates_shear67 = experiment_ex67(Ns)
+    # Ex 6.6
+    Es_dn, Hs_dn, rates_dn = experiment_poly_pairs(Ns, polypairs, enforce_neumann=False)
+    
+    # Ex 6.7
+    Es_neu, Es_shear_neu, Hs_neu, rates_sol_neu, rates_shear_neu = experiment_poly_pairs(
+        Ns, polypairs, enforce_neumann=True, neumann_boundary="bottom"
+    )
     
     if MPI.COMM_WORLD.rank == 0:
-        print(f"Mean error convergence rates of solutions ex66: {np.mean(rates66, axis=1)}")
-        print(f"Mean error convergence rates of solution ex67: {np.mean(rates_sol67)}")
-        print(f"Mean error convergence rates of shear stress ex67: {np.mean(rates_shear67)}")
-
-        loglog_plot(Hs67, Es67, Hs66, Es66)
-        convergence_rate_plot(Ns, rates66, rates_sol67, rates_shear67)
+    
+        print("Mean convergence rates for Do Nothing BC:")
+        print(np.mean(rates_dn, axis=0))
+        print("Mean convergence rates for Neumann BC (Solution):")
+        print(np.mean(rates_sol_neu, axis=0))
+        print("Mean convergence rates for Neumann BC (Shear Stress):")
+        print(np.mean(rates_shear_neu, axis=0))
+        
+    
+        plot_convergence_rates(Ns, rates_dn, rates_sol_neu, polypairs)
+        plot_shear_stress_rates(Ns, rates_shear_neu, polypairs)
+    
