@@ -538,7 +538,10 @@
     \[
         r = \frac{\log(E_{i-1}) - \log(E_i)}{\log(h_{i-1}) - \log(h_i)}
     \]
-    Everything seemed to converge to the expected \(\ell + 1\) convergence rate.
+    Everything seemed to converge to the expected \(\ell + 1\) convergence rate. Except fot the
+    wall shear stress which converged by \(k\), the polynomial degree of the velocity approximation.
+    This is because we are calculate the wall shear stress on the dirichlet boundary, where we
+    have interpolated the exact error. So we are efficiently calculating the error in polynomal interpolation.
 \end{solution}
 
 \begin{figure}[h]

@@ -97,9 +97,10 @@ def plot_shear_stress_rates(Ns, rates_shear_neu, polypairs):
     fig, ax = plt.subplots(figsize=(7, 6))
     x_ticks = [f"$N_{{{i+1}}}/N_{{{i}}}$" for i in range(len(Ns) - 1)]
     x = range(len(x_ticks))
+    linestyle_func = lambda j: '-' if j % 2 == 0 else '--'
     
     for j, poly in enumerate(polypairs):
-        ax.plot(x, rates_shear_neu[:, j], marker='o', label=f"P{poly[0]}-P{poly[1]}")
+        ax.plot(x, rates_shear_neu[:, j], marker='o', label=f"P{poly[0]}-P{poly[1]}", linestyle=linestyle_func(j))
     ax.set_title("Neumann BC (Bottom) - Shear Stress Convergence Rates")
     ax.set_xlabel("Mesh Refinement")
     ax.set_ylabel("Convergence Rate")

@@ -175,7 +175,7 @@ def raised_difference(exact: Callable[[np.ndarray], np.ndarray],
     Based on https://jsdokken.com/dolfinx-tutorial/chapter4/convergence.html with help from August Femtehjell
 
     Args:
-        exact (Callable[[ufl.SpatialCoordinate], ufl.Coefficient]): The exact solution.
+        exact (Callable[[np.ndarray], np.ndarray]): The exact solution.
         approx (dolfinx.fem.Function): The approximate solution.
         degree_raise (int, optional): The degree raise for the space. Defaults to 3.
 
@@ -308,7 +308,7 @@ def experiment_poly_pairs(Ns: list[int], polypairs: list[tuple[int, int]],
                 error_solution = (L2_error(p_exact_numpy, ph) +
                                   H1_seminorm_error(u_exact_numpy, uh) +
                                   L2_error(u_exact_numpy, uh))
-                error_shear = calculate_shear_stress(u_exact_numpy, uh, neumann_boundary=neumann_boundary)
+                error_shear = calculate_shear_stress(u_exact_numpy, uh, neumann_boundary="left")
                 Es[i, j] = error_solution
                 Es_shear[i, j] = error_shear
             else:
