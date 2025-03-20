@@ -116,7 +116,7 @@
 
     \medskip\noindent\textbf{$L_2$:}
     The eigenvalue problem is $L_2 u = \lambda u$. We have looked at this form in lectures.
-    It's easy to see that sinus fufills the eigenfunction equation.
+    It's easy to see that sine satesfies the eigenfunction equation.
 
     \begin{align*}
         L_2 \sin(n \pi x) = \alpha n^2 \pi^2  \sin(n \pi x) = \lambda \sin(n \pi x).
@@ -207,7 +207,7 @@
     \begin{align*}
         \sum u_j \int_0^1 (x N_i' N_j + \alpha N_i' N_j') \, dx & = \lambda \sum \int_0^1 N_i N_j \, dx
     \end{align*}%
-    Which we can write on matrix form $A u = \lambda M u$ where $A$ and $M$ are the stiffness and mass matrix.
+    Which we can write on matrix form $A u = \lambda M u$ where $A$ and $M$ are the stiffness and mass matrecies.
 
     \inputminted[linenos, breaklines, frame=lines]{python}{ex56.py}
     The above code with N=300 have the following output
@@ -432,30 +432,33 @@
 \begin{solution}{6.6}
     Weak form
     \begin{align*}
-        \int_{\Omega} - \nabla \cdot \left( \nabla u   - p I \right) \cdot v \, dx & = \int_{\Omega} f \cdot v \, dx, \quad \forall v \in V, \\
+        \int_{\Omega} - \nabla \cdot \left( \nabla u  + p I \right) \cdot v \, dx & = \int_{\Omega} f \cdot v \, dx, \quad \forall v \in V, \\
     \end{align*}
 
-    \( \nabla \cdot \) is linear, lets look at the first part, \( - (\nabla \cdot \nabla u) \cdot v \).
+    Dot product is linear, lets look at the part involving \( u \), \( - (\nabla \cdot \nabla u) \cdot v \).
     We have the following identiy, similar to the classical product rule in elementary calculus
     \( \nabla \cdot (\nabla u v) = (\nabla \cdot \nabla u)  \cdot v  + \nabla u  : \nabla v\)
 
     \begin{align*}
-        \int_{\Omega} - \nabla \cdot \nabla u \cdot v \, dx + \int_{\Omega} \nabla \cdot ( \nabla u v)  \, dx = \int_{\Omega} \nabla u : \nabla v dx                           \\
-        \int_{\Omega} - \nabla \cdot \nabla u \cdot v \, dx + \int_{\partial \Omega} \nabla u \cdot n v  \, ds = \int_{\Omega} \nabla u : \nabla v dx, \quad \forall v \in V_0 \\
+        \int_{\Omega} - \nabla \cdot \nabla u \cdot v \, dx + \int_{\Omega} \nabla \cdot ( \nabla u v)  \, dx = \int_{\Omega} \nabla u : \nabla v dx  \\
+        \int_{\Omega} - \nabla \cdot \nabla u \cdot v \, dx + \int_{\partial \Omega} \nabla un  \cdot v  \, ds = \int_{\Omega} \nabla u : \nabla v dx \\
+        \int_{\Omega} - \nabla \cdot \nabla u \cdot v \, dx  = \int_{\Omega} \nabla u : \nabla v dx - \int_{\partial \Omega} \nabla u n \cdot v  \, ds
     \end{align*}
 
 
-    We use the same identity again for the pressure term \( \nabla \cdot (p v) = (\nabla p) \cdot v + p  \nabla \cdot v\)
+    The part involving \(p \) would be \( - \nabla \cdot pI \cdot v = - \nabla p  \cdot v \)
+    We use the same identity again \( \nabla \cdot (p v) = (\nabla p) \cdot v + p  \nabla \cdot v\)
     \begin{align*}
         \int_{\Omega} - \nabla p \cdot v \, dx = \int_{\Omega} p \nabla \cdot v \, dx - \int_{\partial \Omega} p v \, ds, \quad \forall v \in V_0
     \end{align*}
 
     Giving us the weak form (we also need the divergence free condition)
     \begin{align*}
-        \int_{\Omega} \nabla u : \nabla v \, dx  - \int_{\partial \Omega} (\nabla u + Ip) \cdot n \cdot v  \, ds - \int_{\Omega} p \nabla \cdot v \, dx & = \int_{\Omega} f v \, dx                                                                                 \\
-        \int_{\Omega} \nabla u : \nabla v \, dx  - \int_{\Omega} p \nabla \cdot v \, dx                                                                 & = \int_{\Omega} f v \, dx +   \int_{\partial \Omega} \left( \nabla u + I p \right) \cdot n \cdot v  \, ds \\
-        \int_{\Omega} \nabla u : \nabla v \, dx  - \int_{\Omega} p \nabla \cdot v \, dx                                                                 & = \int_{\Omega} f v \, dx +   \int_{\partial \Omega} h \cdot v  \, ds                                     \\
-        \int_{\Omega} q \nabla \cdot u \, dx                                                                                                            & = 0, \quad \forall v \in V_0,                                                                             \\
+        \int_{\Omega} \nabla u : \nabla v dx - \int_{\partial \Omega} \nabla u \cdot n v  \, ds +  \int_{\Omega} p \nabla \cdot v \, dx - \int_{\partial \Omega} p v \, ds & = \int_{\Omega} f v \, dx                                                                                 \\
+        \int_{\Omega} \nabla u : \nabla v \, dx  - \int_{\partial \Omega} (\nabla u + Ip) \cdot n \cdot v  \, ds + \int_{\Omega} p \nabla \cdot v \, dx                    & = \int_{\Omega} f v \, dx                                                                                 \\
+        \int_{\Omega} \nabla u : \nabla v \, dx  + \int_{\Omega} p \nabla \cdot v \, dx                                                                                    & = \int_{\Omega} f v \, dx +   \int_{\partial \Omega} \left( \nabla u + I p \right) \cdot n \cdot v  \, ds \\
+        \int_{\Omega} \nabla u : \nabla v \, dx  + \int_{\Omega} p \nabla \cdot v \, dx                                                                                    & = \int_{\Omega} f v \, dx +   \int_{\partial \Omega} h \cdot v  \, ds                                     \\
+        \int_{\Omega} q \nabla \cdot u \, dx                                                                                                                               & = 0, \quad \forall v \in V_0,                                                                             \\
     \end{align*}
 
     We also have the boundary conditions

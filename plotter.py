@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-def visualize_mixed(mixed_function: dolfinx.fem.Function, scale=1.0, savefig=False, savename=""):
+def visualize_mixed(mixed_function: dolfinx.fem.Function, scale=0.1, savefig=False, savename=""):
     """
     Plot a mixed function with a vector and scalar component. Mostly
     compied from dokken tutorial.

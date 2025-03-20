@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dolfinx import fem, mesh, la
 import basix.ufl
 import ufl
@@ -8,7 +9,8 @@ from plotter import visualize_mixed, loglog_plot, convergence_rate_plot
 
 
 
-def boundary_functions_factory(neumann_boundary: str = "bottom"):
+def boundary_functions_factory(neumann_boundary: str = "bottom") -> tuple[Callable[[np.ndarray], np.ndarray], 
+                                                                        Callable[[np.ndarray], np.ndarray]]:
     """
     Factory function to create functions for identifying Dirichlet and Neumann boundaries
     based on the boundary name.
@@ -16,7 +18,6 @@ def boundary_functions_factory(neumann_boundary: str = "bottom"):
     Returns vectorized Neumann and Dirichlet boundary tag functions.
     
     """
-    
     all_boundary_conditions = {'left' : lambda x : np.isclose(x[0], 0.0), 
                                'bottom' : lambda x : np.isclose(x[1], 0.0), 
                                'right' : lambda x: np.isclose(x[0], 1.0), 
@@ -28,7 +29,7 @@ def boundary_functions_factory(neumann_boundary: str = "bottom"):
         
     return on_dirichlet, on_neumann  
     
-def u_exact_numpy(x):
+def u_exact_numpy(x: np.ndarray) -> np.ndarray:
     """
     Exact solution for the velocity field.
     Used for interpolating onto the function space.
@@ -36,13 +37,62 @@ def u_exact_numpy(x):
     """
     return np.sin(np.pi * x[1]), np.cos(np.pi * x[0])
 
-def p_exact_numpy(x):
+def p_exact_numpy(x: np.ndarray) -> np.ndarray:
     """
     Exact solution for the pressure field.
     Used for interpolating onto the function space.
     
     """
     return np.sin(2*np.pi * x[0])
+
+def u_exact_ufl(x: ufl.SpatialCoordinate) -> ufl.Coefficient:
+    """
+    Exact solution for the velocity field.
+    Used for symbolicaly defining the exact solution, in the residual form of the problem.
+    
+    """
+    return ufl.as_vector([ufl.sin(ufl.pi * x[1]), ufl.cos(ufl.pi * x[0])])
+
+
+def p_exact_ufl(x: ufl.SpatialCoordinate) -> ufl.Coefficient:
+    """
+    Exact solution for the pressure field.
+    Used for symbolicaly defining the exact solution, in the residual form of the problem.
+    
+    """
+    return ufl.sin(2 * ufl.pi * x[0])
+
+
+def setup_system(W: fem.FunctionSpace, enforce_neumann=True):
+    """
+    Setup the variational problem for the Stokes equations. The math of the weak form is defined here.
+    
+    """
+    domain = W.mesh
+    
+    u, p = ufl.TrialFunctions(W) #linear combs of basis functions
+    v, q = ufl.TestFunctions(W)
+
+    x = ufl.SpatialCoordinate(domain)
+    
+    
+    f = -ufl.div(ufl.grad(u_exact_ufl(x))) - ufl.grad(p_exact_ufl(x))
+    F = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx
+    F += ufl.inner(p, ufl.div(v)) * ufl.dx
+    F += ufl.inner(ufl.div(u), q) * ufl.dx
+    F -= ufl.inner(f, v) * ufl.dx
+    
+    if enforce_neumann: 
+        n = ufl.FacetNormal(domain)
+        h = (ufl.grad(u_exact_ufl(x)) + p_exact_ufl(x)*ufl.Identity(len(u_exact_ufl(x)))) * n
+        F -= ufl.inner(h, v) * ufl.ds
+        #we can integrate over all of ds since v=0 on the dirichlet boundary, which is the remainding part of the boundary
+    else:
+        pass #Do nothing boundary condtion
+    
+    a, L = ufl.system(F)
+    
+    return a, L
 
 
 def solve_stokes(N, polypair, neumann_boundary ="right", enforce_neumann=False, plot=False, savefig=False, savename=""):
@@ -73,65 +123,34 @@ def solve_stokes(N, polypair, neumann_boundary ="right", enforce_neumann=False, 
     """
         
     on_dirichlet, on_neumann = boundary_functions_factory(neumann_boundary)
-    
+
+    #-----setup domain and function space----
     p_u, p_p = polypair
     domain = mesh.create_unit_square(MPI.COMM_WORLD, N, N)
-
-
     el_u = basix.ufl.element("Lagrange", domain.basix_cell(), p_u, shape=(domain.geometry.dim,))
     el_p = basix.ufl.element("Lagrange", domain.basix_cell(), p_p)
     el_mixed = basix.ufl.mixed_element([el_u, el_p])    
-
     W = fem.functionspace(domain, el_mixed)
+    
+    #-----setup variational problem----
+    a, L = setup_system(W, enforce_neumann)
 
-    u, p = ufl.TrialFunctions(W) #linear combs of basis functions
-    v, q = ufl.TestFunctions(W)
 
-    x = ufl.SpatialCoordinate(domain)
-    u_exact_ufl = ufl.as_vector([ufl.sin(ufl.pi * x[1]), ufl.cos(ufl.pi * x[0])])
-    p_exact_ufl = ufl.sin(2 * ufl.pi * x[0])
+    #------Dirichlet boundary conditions----
+    W0 = W.sub(0)
+    V, V_to_W0 = W0.collapse()
     
-    
-    f = -ufl.div(ufl.grad(u_exact_ufl)) - ufl.grad(p_exact_ufl)
-    F = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx
-    F += ufl.inner(p, ufl.div(v)) * ufl.dx
-    F += ufl.inner(ufl.div(u), q) * ufl.dx
-    F -= ufl.inner(f, v) * ufl.dx
-    
-    if enforce_neumann: 
-        #Neumann boundary condition
-        facets = mesh.locate_entities_boundary(domain, domain.topology.dim - 1, on_neumann)
-        mt = mesh.meshtags(domain, domain.topology.dim - 1, facets, 0) # passing 0, but i dont want to use tags here integrating over all of ds 
-        ds = ufl.Measure("ds", domain=domain, subdomain_data=mt)
-        n = ufl.FacetNormal(domain)
-        F -= ufl.inner((ufl.grad(u_exact_ufl) - p_exact_ufl*ufl.Identity(len(u_exact_ufl))) * n, v) * ds
-    else:
-        pass #Do nothing boundary condtion
-    
-    a, L = ufl.system(F)
-
+    u_exact = fem.Function(V)
+    u_exact.interpolate(u_exact_numpy)
 
     domain.topology.create_connectivity(domain.topology.dim - 1, domain.topology.dim)
     dir_facets = mesh.locate_entities_boundary(domain, domain.topology.dim - 1, on_dirichlet)
-
-    W0 = W.sub(0)
-    V, V_to_W0 = W0.collapse()
-
-    W1 = W.sub(1)
-    Q, Q_to_W1 = W1.collapse()
-
-    
-    u_exact = fem.Function(V)
-    p_exact = fem.Function(Q)
-    p_exact.interpolate(p_exact_numpy)
-    u_exact.interpolate(u_exact_numpy)
-
-    #Dirichlet boundary conditions
     combined_dofs = fem.locate_dofs_topological((W0, V), domain.topology.dim - 1, dir_facets)
     bc = fem.dirichletbc(u_exact, combined_dofs, W0)
     bcs = [bc]
   
-    #Form, create, assemble and solve system
+  
+    #------Form, create, assemble and solve linear system----
     a_compiled = fem.form(a) #create c code for the form
     L_compiled = fem.form(L)
     A = fem.create_matrix(a_compiled) #create matrix code for the form
@@ -145,40 +164,77 @@ def solve_stokes(N, polypair, neumann_boundary ="right", enforce_neumann=False, 
 
     A_inv = scipy.sparse.linalg.splu(A_scipy) #lu factorization
     
-    wh = fem.Function(W)
-    wh.x.array[:] = A_inv.solve(b.array) #solve Ax=b and put the solution in wh
-    if plot:
-        visualize_mixed(wh, scale=0.1, savefig=savefig, savename=savename)
+    wh = fem.Function(W)# solve Ax=b for x
+    wh.x.array[:] = A_inv.solve(b.array) #put the solution in wh
 
-    uh = wh.sub(0).collapse()
-    ph = wh.sub(1).collapse()
     
-    return uh, ph, u_exact, p_exact
+    return wh
 
 
-def calculate_L2_error(exact, approx, comm=None, measure=ufl.dx):
+def raised_difference(exact: Callable[[np.ndarray], np.ndarray], approx: fem.Function, degree_raise: int = 3) -> fem.Function:  
+    """ Get exact solution for the same quadrature points as approximation, interpolate both to a higher 
+            space and return the difference between the exact and approximate solutions.
+
+    Based on https://jsdokken.com/dolfinx-tutorial/chapter4/convergence.html with help from August Femtehjell
+
+    Args:
+        exact (Callable[[ufl.SpatialCoordinate], ufl.Coefficient]): The exact solution.
+        approx (dolfinx.fem.Function): The approximate solution.
+        degree_raise (int, optional): The degree raise for the space. Defaults to 3.
+
+    Returns:
+        dolfinx.fem.Function: The error function.
+    """
+    # Get the function space and mesh   
+    V = approx.function_space
+    domain = V.mesh
+    degree = V.ufl_element().degree
+    family = V.ufl_element().family_name
+    shape = V.value_shape
+ 
+    # Create a higher-order function space
+    Ve = fem.functionspace(domain, (family, degree + degree_raise, shape))
+    
+    # Interpolate the exact solution to the higher-order function space
+    u_ex = fem.Function(Ve)
+    u_ex.interpolate(exact)
+
+    # Interpolate the approximate solution to the higher-order function space
+    u_h = fem.Function(Ve)
+    u_h.interpolate(approx)
+
+    difference = fem.Function(Ve)
+    # Compute the difference between the exact and approximate solutions
+    difference.x.array[:] = u_ex.x.array - u_h.x.array
+
+    return difference
+
+
+def L2_error(exact, approx, comm=None, measure=ufl.dx):
     """
     Calculate the L2 error between the exact and approximate solutions.
     
     """
     if comm is None:
-        comm = exact.function_space.mesh.comm
+        comm = approx.function_space.mesh.comm
+    diff = raised_difference(exact, approx)
     # Define the error form
-    error_form = fem.form(ufl.inner(exact - approx, exact - approx) * measure)
+    error_form = fem.form(ufl.inner(diff, diff) * measure)
     # Assemble the error and perform a global reduction
     error_value = np.sqrt(comm.allreduce(fem.assemble_scalar(error_form), op=MPI.SUM))
     return error_value
 
 
-def calculate_H1_seminorm_error(exact, approx, measure=ufl.dx):
+def H1_seminorm_error(exact, approx, measure=ufl.dx):
     """
     Calculate the H1 error (gradient error) between the exact and approximate solutions.
     returns:
     error_value : float
         ||grad(exact - approx)||_L2
     """
-    comm = exact.function_space.mesh.comm
-    error_form = fem.form(ufl.inner(ufl.grad(exact - approx), ufl.grad(exact - approx)) * measure)
+    comm = approx.function_space.mesh.comm
+    diff = raised_difference(exact, approx)
+    error_form = fem.form(ufl.inner(ufl.grad(diff), ufl.grad(diff)) * measure)
     error_value = np.sqrt(comm.allreduce(fem.assemble_scalar(error_form), op=MPI.SUM))
     return error_value
 
@@ -212,10 +268,10 @@ def calculate_shear_stress(u_exact, uh, neumann_boundary="left"):
     n = ufl.FacetNormal(uh.function_space.mesh)
     t = ufl.as_vector([n[1], -n[0]])
     
-    shear_exact = ufl.dot(ufl.grad(u_exact), t)
-    shear_approx = ufl.dot(ufl.grad(uh), t)
-    
-    return calculate_L2_error(shear_exact, shear_approx, comm=comm, measure=ds)
+    diff = raised_difference(u_exact, uh)
+    error_form = fem.form(ufl.inner(ufl.grad(diff)*t, ufl.grad(diff)*t) * ds(0))
+    error_value = np.sqrt(comm.allreduce(fem.assemble_scalar(error_form), op=MPI.SUM))
+    return error_value
 
 
 def experiment_ex66(Ns):
@@ -231,10 +287,13 @@ def experiment_ex66(Ns):
     
     for j, polypair in enumerate(polypairs):
         for i, N in enumerate(Ns):
-            uh, ph, u_exact, p_exact = solve_stokes(N, polypair)
+            wh = solve_stokes(N, polypair)
             # Compute errors (order: exact, approx)
-            error_pressure = calculate_L2_error(p_exact, ph)
-            error_velocity = calculate_H1_seminorm_error(u_exact, uh)
+            uh = wh.sub(0).collapse()
+            ph = wh.sub(1).collapse()
+            
+            error_pressure = L2_error(p_exact_numpy, ph)
+            error_velocity = H1_seminorm_error(u_exact_numpy, uh)
             Es[i, j] = error_pressure + error_velocity
             Hs[i, j] = 1.0 / N
     
@@ -257,11 +316,14 @@ def experiment_ex67(Ns):
     Hs = np.zeros(num_N)
     
     for i, N in enumerate(Ns):
-        uh, ph, u_exact, p_exact = solve_stokes(
+        wh = solve_stokes(
             N, polypair, enforce_neumann=True, neumann_boundary=neumann_boundary
         )
-        error_solution = calculate_L2_error(p_exact, ph) + calculate_H1_seminorm_error(u_exact, uh) + calculate_L2_error(u_exact, uh)
-        error_shear = calculate_shear_stress(u_exact, uh, neumann_boundary=neumann_boundary)
+        uh = wh.sub(0).collapse()
+        ph = wh.sub(1).collapse()
+        
+        error_solution = L2_error(p_exact_numpy, ph) + H1_seminorm_error(u_exact_numpy, uh) + L2_error(u_exact_numpy, uh)
+        error_shear = calculate_shear_stress(u_exact_numpy, uh, neumann_boundary=neumann_boundary)
         Es[i, 0] = error_solution
         Es[i, 1] = error_shear
         Hs[i] = 1.0 / N
@@ -271,19 +333,26 @@ def experiment_ex67(Ns):
     return Es, Hs, rates_sol, rates_shear
 
 
-def test(plot=False, enforce_neumann=False, neumann_boundary='right', savefig=False, savename=""):
+def test(plot=False, enforce_neumann=True, neumann_boundary='right', savefig=False, savename=""):
     """
     Test the Stokes solver and error calculations, and optionally plot or save the results.
   
     """
-    uh, ph, u_exact, p_exact = solve_stokes(
+    wh = solve_stokes(
         10, (3, 2), plot=plot, enforce_neumann=enforce_neumann,
         neumann_boundary=neumann_boundary, savefig=savefig, savename=savename
     )
+    if plot:
+        visualize_mixed(wh, scale=0.1, savefig=savefig, savename=savename)
+
+    uh = wh.sub(0).collapse()
+    ph = wh.sub(1).collapse()
+    
+    print(uh.function_space.mesh)
     # Compute errors with the convention: exact, approx
-    error = calculate_H1_seminorm_error(u_exact, uh) + calculate_L2_error(p_exact, ph)
+    error = H1_seminorm_error(u_exact_numpy, uh) + L2_error(p_exact_numpy, ph)
     comm = uh.function_space.mesh.comm
-    shear_error = calculate_shear_stress(u_exact, uh, neumann_boundary='left')
+    shear_error = calculate_shear_stress(u_exact_numpy, uh, neumann_boundary='left')
     if comm.rank == 0:
         print(f"Error: {error:.2e}")
         print(f"Shear stress error: {shear_error:.2e}")
